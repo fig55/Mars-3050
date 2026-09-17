@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const {Game,evaluate,compare,bot} = require('./engine.js');
+const {Game,evaluate,compare,bot,DEFAULT_CONTENT} = require('./engine.js');
 const cards = text => text.split(' ').map(s=>({r:'23456789TJQKA'.indexOf(s[0])+2,s:'shdc'.indexOf(s[1])}));
 assert.equal(evaluate(cards('As Ks Qs Js Ts 2h 3d'))[0],8);
 assert.deepEqual(evaluate(cards('As 2h 3d 4c 5s Kh Qh')),[4,5]);
@@ -29,9 +29,9 @@ for(let round=0;round<30;round++) {
   assert.equal(game.players.reduce((n,p)=>n+p.stack,0),12000); hands++;
  }
 }
-// --- 基线冻结：refEvaluate 是被测 evaluate 的独立副本 ---
-// 阶段 3 会把 evaluate 重写为位运算快评估器，届时靠这份副本做差分测试。
-// 这份副本必须保持原样，绝不随被测实现一起演进。
+// --- Frozen baseline: refEvaluate is an independent copy of the evaluate() under test ---
+// Stage 3 rewrites evaluate() as a bitwise fast evaluator, and this copy is the differ.
+// It must stay byte-identical and never evolve alongside the implementation.
 const refCompare = (a, b) => { for (let i = 0; i < Math.max(a.length, b.length); i++) { const d = (a[i] || 0) - (b[i] || 0); if (d) return d; } return 0; };
 function refFive(five) {
   const ranks = five.map(c => c.r).sort((a, b) => b - a), groups = [...new Set(ranks)].map(r => [ranks.filter(v => v === r).length, r]).sort((a, b) => b[0] - a[0] || b[1] - a[1]);
@@ -64,4 +64,74 @@ for (let i = 0; i < 2000; i++) {
   assert.deepEqual(evaluate(hand), refEvaluate(hand), `refEvaluate 差分不一致：${JSON.stringify(hand)}`);
   diffRounds++;
 }
-console.log(`通过：牌型、加注合法性、短码全下与累计重开、单挑顺序、边池、奇数平分，${hands} 手随机对局筹码守恒，${diffRounds} 组 refEvaluate 差分。`);
+// --- Seat-count independence -------------------------------------------------
+// A widened table needs its own content: the engine refuses to build more seats than
+// the content defines, which is itself the guard against undefined names leaking in.
+const wideContent = n => ({
+  ...DEFAULT_CONTENT,
+  seats: Array.from({length:n}, (_, i) => ({name:`S${i}`, style:'测试位', aggression:.12, foldBias:.17, habit:'把手收在桌沿。'}))
+});
+const makeRng = seed => () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+
+// The odd chip must follow seat order clockwise from the button at ANY table size.
+// The legacy `(i - button + 5) % 6` collides once there are 7+ seats: seat 0 and seat 6
+// both hash to 5, so the sort tie broke the wrong way and the odd chip went to the
+// wrong player. Total chips stay conserved either way, which is exactly why this has
+// to assert the RECIPIENT rather than the sum.
+for (const n of [7, 9]) {
+  const g = new Game({seats:n, content:wideContent(n), rng:makeRng(7)});
+  g.button = 0;
+  g.board = cards('2s 3h 7d 9c Js');
+  g.players.forEach(p => { p.folded = true; p.total = 0; p.stack = 0; p.startStack = 0; });
+  Object.assign(g.players[0], {folded:false, total:1, cards:cards('As Ah')});
+  Object.assign(g.players[6], {folded:false, total:1, cards:cards('Ac Ad')});
+  Object.assign(g.players[3], {total:1, cards:cards('2c 2d')}); // folds, but its chip stays in the pot
+  g.settle(); // three chips split between two tied winners -> exactly one odd chip
+  assert.equal(g.players[6].stack, 2, `${n} 人桌：奇数筹码应归按钮左手第一位（座位 6）`);
+  assert.equal(g.players[0].stack, 1, `${n} 人桌：座位 0 只拿均分部分`);
+  assert.equal(g.players.reduce((s,p) => s + p.stack, 0), 3);
+}
+
+// A full nine-handed hand must run clean: no undefined ever reaches a player's line.
+{
+  const g = new Game({seats:9, content:wideContent(9), rng:makeRng(11)});
+  let played = 0;
+  for (let i = 0; i < 20 && g.players.filter(p => p.stack > 0).length > 1; i++) {
+    if (!g.start()) break;
+    let steps = 0;
+    while (g.phase !== 'done') {
+      assert(steps++ < 400, '9 人桌未收敛');
+      if (g.awaitingStreet) g.street(); else g.act(...bot(g));
+      assert(g.players.every(p => Number.isInteger(p.stack) && p.stack >= 0), '筹码必须始终是非负整数');
+      assert(g.players.every(p => typeof p.tell === 'string' && !p.tell.includes('undefined')), `9 人桌出现 undefined：${g.players.map(p=>p.tell).join(' | ')}`);
+      assert(g.players.every(p => typeof p.last === 'string' && p.last), `9 人桌出现空动作文案：${g.players.map(p=>p.last).join(' | ')}`);
+    }
+    assert(!g.logs.some(l => l.text.includes('undefined')), '日志中不得出现 undefined');
+    assert.equal(g.players.reduce((s,p) => s + p.stack, 0), 9 * 2000);
+    played++;
+  }
+  assert(played > 0, '9 人桌至少应打完一手');
+}
+
+// --- The event stream is the hand's public, replayable record -----------------
+{
+  const g = new Game(makeRng(23));
+  g.start();
+  let steps = 0;
+  while (g.phase !== 'done') { assert(steps++ < 250, '事件流用例未收敛'); if (g.awaitingStreet) g.street(); else g.act(...bot(g)); }
+  const rendered = g.events.map(e => DEFAULT_CONTENT.format(e));
+  const engineLogs = g.logs.filter(l => l.hand === g.hand).map(l => l.text);
+  // Every engine log line is exactly the rendering of one event, in the same order.
+  assert.deepEqual(engineLogs, rendered.slice(rendered.length - engineLogs.length), '每个事件恰好产出一行日志');
+  assert(g.events.every(e => e.hand === g.hand), '事件只属于产出它的那一手');
+  const moves = g.events.filter(e => e.type === 'action').map(e => e.move);
+  assert(moves.every(m => ['fold','check','call','raise'].includes(m)), `动作键非法：${moves.join(',')}`);
+  assert(g.events.some(e => e.type === 'payout'), '一手结束必有派彩事件');
+  // Replay depends on events surviving serialisation intact.
+  assert.deepEqual(JSON.parse(JSON.stringify(g.events)), g.events, '事件必须可无损序列化');
+  // Starting a new hand must not carry the previous hand's events forward.
+  g.start();
+  assert(g.events.every(e => e.hand === g.hand) && g.events.some(e => e.type === 'handStart'), '开新手应清空上一手的事件');
+}
+
+console.log(`通过：牌型、加注合法性、短码全下与累计重开、单挑顺序、边池、奇数平分，${hands} 手随机对局筹码守恒，${diffRounds} 组 refEvaluate 差分，7/9 人桌奇数筹码归属，9 人桌 20 手无 undefined，事件流与日志一一对应。`);
