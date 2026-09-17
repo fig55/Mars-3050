@@ -1,0 +1,11 @@
+# 依赖与构建产物
+node_modules/
+dist/
+
+# Rust / Tauri 构建产物（阶段 0.3 接入后生效）
+src-tauri/target/
+
+# 本地备份与编辑器
+*.bak
+.DS_Store
+Thumbs.db
