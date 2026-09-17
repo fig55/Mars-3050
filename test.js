@@ -29,4 +29,39 @@ for(let round=0;round<30;round++) {
   assert.equal(game.players.reduce((n,p)=>n+p.stack,0),12000); hands++;
  }
 }
-console.log(`通过：牌型、加注合法性、短码全下与累计重开、单挑顺序、边池、奇数平分，${hands} 手随机对局筹码守恒。`);
+// --- 基线冻结：refEvaluate 是被测 evaluate 的独立副本 ---
+// 阶段 3 会把 evaluate 重写为位运算快评估器，届时靠这份副本做差分测试。
+// 这份副本必须保持原样，绝不随被测实现一起演进。
+const refCompare = (a, b) => { for (let i = 0; i < Math.max(a.length, b.length); i++) { const d = (a[i] || 0) - (b[i] || 0); if (d) return d; } return 0; };
+function refFive(five) {
+  const ranks = five.map(c => c.r).sort((a, b) => b - a), groups = [...new Set(ranks)].map(r => [ranks.filter(v => v === r).length, r]).sort((a, b) => b[0] - a[0] || b[1] - a[1]);
+  const flush = five.every(c => c.s === five[0].s), unique = [...new Set(ranks)];
+  const straight = unique.length === 5 && (unique[0] - unique[4] === 4 ? unique[0] : unique.join() === '14,5,4,3,2' ? 5 : 0);
+  if (straight && flush) return [8, straight];
+  if (groups[0][0] === 4) return [7, groups[0][1], groups[1][1]];
+  if (groups[0][0] === 3 && groups[1][0] === 2) return [6, groups[0][1], groups[1][1]];
+  if (flush) return [5, ...ranks];
+  if (straight) return [4, straight];
+  if (groups[0][0] === 3) return [3, ...groups.map(g => g[1])];
+  if (groups[0][0] === 2) return [groups[1][0] === 2 ? 2 : 1, ...groups.map(g => g[1])];
+  return [0, ...ranks];
+}
+function refEvaluate(cs) {
+  let best = [-1];
+  for (let a = 0; a < cs.length - 4; a++) for (let b = a + 1; b < cs.length - 3; b++) for (let c = b + 1; c < cs.length - 2; c++) for (let d = c + 1; d < cs.length - 1; d++) for (let e = d + 1; e < cs.length; e++) {
+    const score = refFive([cs[a], cs[b], cs[c], cs[d], cs[e]]); if (refCompare(score, best) > 0) best = score;
+  }
+  return best;
+}
+let refSeed = 20260917;
+const refRng = () => ((refSeed = (Math.imul(refSeed, 1664525) + 1013904223) >>> 0) / 4294967296);
+const refPool = []; for (let r = 2; r <= 14; r++) for (let s = 0; s < 4; s++) refPool.push({ r, s });
+let diffRounds = 0;
+for (let i = 0; i < 2000; i++) {
+  const d = refPool.slice();
+  for (let j = d.length - 1; j > 0; j--) { const k = Math.floor(refRng() * (j + 1)); [d[j], d[k]] = [d[k], d[j]]; }
+  const hand = d.slice(0, 5 + Math.floor(refRng() * 3));
+  assert.deepEqual(evaluate(hand), refEvaluate(hand), `refEvaluate 差分不一致：${JSON.stringify(hand)}`);
+  diffRounds++;
+}
+console.log(`通过：牌型、加注合法性、短码全下与累计重开、单挑顺序、边池、奇数平分，${hands} 手随机对局筹码守恒，${diffRounds} 组 refEvaluate 差分。`);
