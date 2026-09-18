@@ -1,12 +1,36 @@
 const assert = require('node:assert/strict');
-const {Game,evaluate,compare,bot,DEFAULT_CONTENT} = require('./engine.js');
+const {Game,evaluate,bestFive,compare,bot,DEFAULT_CONTENT} = require('./src/engine.js');
 const cards = text => text.split(' ').map(s=>({r:'23456789TJQKA'.indexOf(s[0])+2,s:'shdc'.indexOf(s[1])}));
+// Both default and injected-random constructors must reach a playable hand.
+for (const args of [[], [{}], [{seats:6}], [{rng:undefined}], [()=>.5], [{rng:()=>.5}], [{seats:6},()=>.5]]) {
+  const game = new Game(...args);
+  assert.equal(game.start(), true);
+  assert.equal(game.players.flatMap(p=>p.cards).length,12);
+  assert(game.options(), '开局必须有可行动玩家');
+  assert.equal(typeof game.aiRng,'function');
+}
+const injected = ()=>.25;
+assert.equal(new Game({rng:injected}).rng,injected);
+assert.equal(new Game({rng:injected}).aiRng,injected);
+assert.throws(()=>new Game({rng:123}),TypeError);
+assert.throws(()=>new Game({aiRng:'invalid'}),TypeError);
+{
+  const g = new Game(()=>.23); g.start();
+  g.players[g.actor].cards = cards('As Ah');
+  const choice = bot(g);
+  g.players[1].cards = cards('2c 3d');
+  g.players[2].cards = cards('Ks Kh');
+  assert.deepEqual(bot(g),choice,'对手不能读取其他玩家的暗牌');
+  g.players[g.actor].profile.aggression = 0;
+  assert.notDeepEqual(bot(g),choice,'角色的激进程度必须影响决策');
+}
 assert.equal(evaluate(cards('As Ks Qs Js Ts 2h 3d'))[0],8);
 assert.deepEqual(evaluate(cards('As 2h 3d 4c 5s Kh Qh')),[4,5]);
 assert.deepEqual(evaluate(cards('As Ah Ad Ks Kh Kd 2c')),[6,14,13]);
 assert.equal(evaluate(cards('As Ah Ad Ac Ks Kh 2c'))[0],7);
 assert(compare(evaluate(cards('As Ah Kd Qc 8s')),evaluate(cards('Ac Ad Qs Jc 9s')))>0);
 assert.equal(compare(evaluate(cards('As Kd Qc Js Th 2s 3s')),evaluate(cards('As Kd Qc Js Th 9h 9d'))),0);
+assert.deepEqual(evaluate(bestFive(cards('As Ks Qs Js Ts 2d 3c'))),evaluate(cards('As Ks Qs Js Ts 2d 3c')));
 const g = new Game(()=>.5); g.start();
 assert.equal(g.actor,3); assert.equal(g.pot,30); assert.equal(g.options().min,40);
 assert.throws(()=>g.act('raise',30)); assert.throws(()=>g.act('raise',NaN)); assert.throws(()=>g.act('raise',40.5));
@@ -27,6 +51,9 @@ for(let round=0;round<30;round++) {
   let steps=0;
   while(game.phase!=='done') { assert(steps++<250,'hand must terminate'); if(game.awaitingStreet) game.street(); else {const o=game.options(); const r=rng(); if(o.canRaise && r<.06) game.act('raise',o.max); else game.act(...bot(game));} assert(game.players.every(p=>Number.isInteger(p.stack)&&p.stack>=0)); if(game.phase!=='done') assert.equal(game.players.reduce((n,p)=>n+p.stack,0)+game.pot,12000); }
   assert.equal(game.players.reduce((n,p)=>n+p.stack,0),12000); hands++;
+  assert.equal(game.history.at(-1).hand,game.hand);
+  assert(game.history.length<=10);
+  assert(game.history.at(-1).results.every(r=>!r.hands || r.hands.every(h=>h.cards.length===5 && !game.players[h.seat].folded)));
  }
 }
 // --- Frozen baseline: refEvaluate is an independent copy of the evaluate() under test ---
@@ -135,3 +162,22 @@ for (const n of [7, 9]) {
 }
 
 console.log(`通过：牌型、加注合法性、短码全下与累计重开、单挑顺序、边池、奇数平分，${hands} 手随机对局筹码守恒，${diffRounds} 组 refEvaluate 差分，7/9 人桌奇数筹码归属，9 人桌 20 手无 undefined，事件流与日志一一对应。`);
+
+// Exercise the real HTTP handler on an ephemeral port, without disturbing previews.
+(async () => {
+  const server = require('./server');
+  const fs = require('node:fs');
+  const path = require('node:path');
+  try {
+    await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
+    const base = `http://127.0.0.1:${server.address().port}`;
+    for (const [url,file] of [['/','index.html'],['/index.html','index.html'],['/style.css','style.css'],['/engine.js','engine.js'],['/app.js','app.js'],['/assets/players.png','assets/players.png'],['/assets/ajie-poses.png','assets/ajie-poses.png']]) {
+      const response = await fetch(base+url);
+      assert.equal(response.status,200,url);
+      assert.deepEqual(Buffer.from(await response.arrayBuffer()),fs.readFileSync(path.join(__dirname,'src',file)),url);
+      if(file.endsWith('.png')) assert.equal(response.headers.get('content-type'),'image/png');
+    }
+    assert.equal((await fetch(base+'/package.json')).status,404);
+    console.log('通过：默认/配置式开局、随机函数校验、7 个网页资源与源码一致、非公开文件拒绝访问。');
+  } finally { await new Promise(resolve=>server.close(resolve)); }
+})().catch(error=>{console.error(error);process.exitCode=1;});

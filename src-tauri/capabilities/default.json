@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "夜局主窗口所需的最小权限集合。Tauri 2 的插件光注册不够，必须在此显式授权，否则前端调用会被静默拒绝。",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "store:default",
+    "dialog:default"
+  ]
+}

@@ -15,7 +15,7 @@
 
 const crypto = require('node:crypto');
 const path = require('node:path');
-const { Game, bot } = require(path.join(__dirname, '..', 'engine.js'));
+const { Game, bot } = require(path.join(__dirname, '..', 'src', 'engine.js'));
 
 const HANDS = Number(process.env.HANDS || 5);
 

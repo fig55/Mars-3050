@@ -25,6 +25,14 @@
     }
     return best;
   }
+  function bestFive(cards) {
+    const target = evaluate(cards);
+    for (let a=0;a<cards.length-4;a++) for(let b=a+1;b<cards.length-3;b++) for(let c=b+1;c<cards.length-2;c++) for(let d=c+1;d<cards.length-1;d++) for(let e=d+1;e<cards.length;e++) {
+      const hand=[cards[a],cards[b],cards[c],cards[d],cards[e]];
+      if (compare(five(hand),target)===0) return hand.map(card=>({r:card.r,s:card.s}));
+    }
+    return [];
+  }
 
   // Table rules and seat count. Nothing here may encode a specific seat count:
   // the engine must stay correct for any players.length the content provides.
@@ -107,11 +115,14 @@
         ? { ...DEFAULT_CONFIG, rng: a, aiRng: a }
         : { ...DEFAULT_CONFIG, ...a };
       if (typeof b === 'function') config.rng = config.aiRng = b;
+      config.rng ??= Math.random;
+      config.aiRng ??= config.rng;
+      if (typeof config.rng !== 'function' || typeof config.aiRng !== 'function') throw new TypeError('rng 和 aiRng 必须是随机函数');
 
       this.config = config;
       this.content = config.content || DEFAULT_CONTENT;
       this.rng = config.rng;
-      this.aiRng = config.aiRng || config.rng;
+      this.aiRng = config.aiRng;
 
       if (this.content.seats.length < config.seats) throw Error(`座位定义不足：需要 ${config.seats} 个，内容只提供了 ${this.content.seats.length} 个`);
       // seat is the stable seat index: it survives elimination, and the odd-chip
@@ -132,6 +143,7 @@
       }));
 
       this.logs = [];
+      this.history = [];
       this.hand = 0;
       this.button = -1;
       this.phase = 'ready';
@@ -260,7 +272,7 @@
         // must come from players.length, never a literal.
         winners.sort((a, b) => ((a.seat - this.button + n - 1) % n) - ((b.seat - this.button + n - 1) % n));
         winners.forEach((p, i) => p.stack += Math.floor(amount / winners.length) + (i < amount % winners.length ? 1 : 0));
-        this.results.push({ seats: winners.map(p => p.seat), names: winners.map(p => p.name).join('、'), amount, label: `${this.results.length ? L.potSide : L.potMain} · ${names[best[0]]}${winners.length > 1 ? ' · ' + L.split : ''}` });
+        this.results.push({ seats: winners.map(p => p.seat), names: winners.map(p => p.name).join('、'), amount, label: `${this.results.length ? L.potSide : L.potMain} · ${names[best[0]]}${winners.length > 1 ? ' · ' + L.split : ''}`, hands: winners.map(p=>({seat:p.seat,cards:bestFive([...p.cards,...this.board])})) });
       }
       this.finish();
     }
@@ -272,19 +284,32 @@
         if (d < 0) { p.tell = this.content.tells.bust(p, d, this); this.emit({ type: 'bust', seat: p.seat, name: p.name, delta: d, tell: p.tell, busted: p.stack === 0 }); }
         else if (d > 0) p.tell = this.content.tells.win(p, this);
       });
+      this.history.push({hand:this.hand,button:this.button,board:this.board.map(c=>({r:c.r,s:c.s})),heroCards:this.players[this.config.heroIndex].cards.map(c=>({r:c.r,s:c.s})),events:this.events.map(e=>structuredClone(e)),results:structuredClone(this.results),net:this.players.map(p=>p.stack-p.startStack)});
+      if(this.history.length>10) this.history.shift();
     }
   }
   // ponytail: personality-weighted heuristics, not a solver; replace with equity simulation for stronger opponents.
   function bot(game) {
     const p = game.players[game.actor], o = game.options(), r = game.rng();
-    const [a, b] = p.cards, score = game.board.length ? evaluate([...p.cards, ...game.board])[0] / 8 + 0.2 : (a.r + b.r) / 38 + (a.r === b.r ? 0.28 : 0) + (a.s === b.s ? 0.07 : 0);
-    const aggression = p.profile.aggression, price = o.call / Math.max(1, game.pot + o.call);
-    if (o.call && score + r * .36 < price + p.profile.foldBias) return ['fold'];
-    if (o.canRaise && r < aggression + (score > .75 ? .22 : 0)) {
-      const amount = Math.min(o.max, Math.max(o.min, game.current + Math.ceil(game.pot * (.35 + score * .4) / 10) * 10)); return ['raise', amount];
+    const [a,b] = p.cards;
+    let strength;
+    if (!game.board.length) strength = .18 + (a.r+b.r)/28*.42 + (a.r===b.r ? .18+a.r/140 : 0) + (a.s===b.s ? .05 : 0) + (Math.abs(a.r-b.r)<=2 ? .05 : 0);
+    else {
+      const hand = evaluate([...p.cards,...game.board]);
+      strength = [.22,.48,.68,.8,.89,.92,.96,.985,.995][hand[0]] + (hand[1]||0)/14*.05;
+      if (game.board.length===5 && compare(hand,evaluate(game.board))===0) strength -= .08;
+      const suits = [0,1,2,3].map(s=>[...p.cards,...game.board].filter(c=>c.s===s).length);
+      if (game.board.length<5 && Math.max(...suits)===4 && p.cards.some(c=>c.s===suits.indexOf(4))) strength += .12;
+    }
+    const late = ((game.actor-game.button+game.players.length)%game.players.length)/(game.players.length-1);
+    strength += late*.06;
+    const price = o.call / Math.max(1,game.pot+o.call);
+    if (o.call && strength+r*.24 < price+p.profile.foldBias) return ['fold'];
+    if (o.canRaise && r < p.profile.aggression*(strength>.55?1.4:.45) + (strength>.78?.18:0)) {
+      const amount = Math.min(o.max,Math.max(o.min,game.current+Math.ceil(game.pot*(.25+strength*.7)/10)*10)); return ['raise',amount];
     }
     return ['call'];
   }
-  root.Poker = { Game, evaluate, compare, deck, names, bot, DEFAULT_CONFIG, DEFAULT_CONTENT };
+  root.Poker = { Game, evaluate, bestFive, compare, deck, names, bot, DEFAULT_CONFIG, DEFAULT_CONTENT };
   if (typeof module !== 'undefined') module.exports = root.Poker;
 })(typeof window !== 'undefined' ? window : globalThis);

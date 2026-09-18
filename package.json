@@ -1,1 +1,16 @@
-{"name":"quiet-table","version":"1.0.0","private":true,"scripts":{"start":"node server.js","test":"node test.js"}}
+{
+  "name": "quiet-table",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js",
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "postbuild": "node scripts/publish.js"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

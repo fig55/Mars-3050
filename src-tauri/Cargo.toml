@@ -1,0 +1,28 @@
+[package]
+name = "quiet-table"
+version = "1.0.0"
+description = "夜局 · 沉浸式德州扑克"
+authors = ["FIGG"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+# The desktop shell is a thin host: it owns the window, the WebView and the two
+# native plugins. All game rules live in ../src/engine.js, not here.
+name = "quiet_table_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-store = "2"
+tauri-plugin-dialog = "2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

@@ -2,10 +2,15 @@
 node_modules/
 dist/
 
-# Rust / Tauri 构建产物（阶段 0.3 接入后生效）
+# Rust / Tauri 构建产物
 src-tauri/target/
+src-tauri/gen/schemas/
+
+# 从 release 构建拷出来的可双击副本（每次 npm run build 后重新拷）
+/夜局.exe
 
 # 本地备份与编辑器
 *.bak
 .DS_Store
 Thumbs.db
+.playwright-cli/
