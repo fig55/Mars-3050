@@ -63,16 +63,22 @@ function updateChipSelection() {
   const tray=$('chipSelection'); if(!tray) return;
   const amount=selectedAmount();
   tray.hidden=game.actor!==0;
-  $('selectedChipAmount').textContent=amount?`已数 ${fmt(amount)} · 拖到桌面投放`:'点击自己面前的筹码，逐枚数好后拖到桌面';
+  $('selectedChipAmount').textContent=amount?`已选 ${fmt(amount)}（尚未下注）· 拖动桌前筹码到公共牌或底池`:'点击筹码数好金额，直接从自己面前拖到公共牌或底池';
   $('throwChips').disabled=!amount;$('resetChips').disabled=!amount;
   $('selectedChipPreview').innerHTML=chipGroups(TableChips.denominations.map(value=>({value,count:selectedChips.filter(v=>v===value).length})).filter(g=>g.count));
   $('chipDropZone').hidden=!amount;
   const bank=document.querySelector('.hero .seat-chips');
   if(bank) {
-    const groups=TableChips.split(game.players[0].stack,true).map(g=>({...g,count:g.count-selectedChips.filter(v=>v===g.value).length})).filter(g=>g.count>0);
+    const groups=TableChips.split(game.players[0].stack,true);
     bank.innerHTML=chipGroups(groups,game.actor===0);
-    bank.setAttribute('aria-label',`桌前剩余 ${fmt(game.players[0].stack-amount)}，已数 ${fmt(amount)}`);
+    bank.querySelectorAll('[data-pick-chip]').forEach(button=>{
+      const count=selectedChips.filter(v=>v===Number(button.dataset.pickChip)).length;
+      button.classList.toggle('chip-selected',count>0);
+      if(count){const badge=document.createElement('span');badge.className='chip-selected-count';badge.textContent=`已选 ${count}`;button.append(badge);}
+    });
+    bank.setAttribute('aria-label',`余额 ${fmt(game.players[0].stack)}，其中已选 ${fmt(amount)}，尚未下注`);
   }
+  document.querySelector('.board-area').classList.toggle('accepts-chips',amount>0);
 }
 function submitChips() {
   if(game.actor!==0)return;
@@ -144,6 +150,28 @@ function renderTableActivity() {
   if(selectionContext!==context){selectedChips=[];selectionContext=context;cancelChipDrag();}
   updateChipSelection();
 }
+let momentGame=null,momentHand=-1,momentBoard='',momentKey='',momentUntil=0,momentTimer;
+function renderHandMoment(){
+  const hero=game.players[0],boardKey=game.board.map(c=>`${c.r}:${c.s}`).join(',');
+  if(momentGame!==game||momentHand!==game.hand){momentGame=game;momentHand=game.hand;momentBoard='';momentKey='';momentUntil=0;}
+  let banner=$('handMoment');
+  if(!banner){banner=document.createElement('div');banner.id='handMoment';banner.setAttribute('role','status');banner.hidden=true;document.querySelector('.controls').prepend(banner);}
+  const moment=!hero.folded&&game.phase!=='done'?Poker.handMoment(hero.cards,game.board):null;
+  if(boardKey!==momentBoard){
+    momentBoard=boardKey;
+    if(moment&&moment.key!==momentKey){
+      momentKey=moment.key;momentUntil=Date.now()+2300;
+      banner.innerHTML=`<strong>击中${moment.label}</strong><small>你的当前最佳组合 · 非胜负判定</small>`;
+      banner.classList.remove('moment-enter');void banner.offsetWidth;banner.classList.add('moment-enter');
+      clearTimeout(momentTimer);momentTimer=setTimeout(renderHandMoment,2350);
+    }else if(!moment){momentKey='';momentUntil=0;}
+  }
+  const active=!!moment&&Date.now()<momentUntil;
+  banner.hidden=!active;document.querySelector('.board-area').classList.toggle('hand-impact',active);
+  for(const [id,cards] of [['board',game.board],['hole',hero.cards]]){
+    [...$(id).children].forEach((el,i)=>el.classList.toggle('best-card',active&&moment.cards.some(c=>c.r===cards[i]?.r&&c.s===cards[i]?.s)));
+  }
+}
 function render() {
   const ajiePose = pose.hand===game.hand && Date.now()<pose.until ? pose.state : game.actor===3 ? 'thinking' : 'idle';
   $('handLabel').textContent = `第 ${String(game.hand || 1).padStart(2, '0')} 手`; $('phaseLabel').textContent = phases[game.phase];
@@ -207,6 +235,7 @@ function render() {
   if (nearBottom) journal.scrollTop = journal.scrollHeight;
   $('latest').hidden = journal.scrollHeight - journal.scrollTop - journal.clientHeight < 70;
   renderTableActivity();
+  renderHandMoment();
 }
 function schedule() {
   clearTimeout(timer); saveGame();
@@ -239,6 +268,7 @@ chipTray.innerHTML='<span id="selectedChipAmount" role="status"></span><button i
 document.querySelector('.controls').append(chipTray);
 const chipDropZone=document.createElement('div');chipDropZone.id='chipDropZone';chipDropZone.hidden=true;chipDropZone.textContent='拖到这里投放';document.querySelector('.board-area').append(chipDropZone);
 document.querySelector('.hero').addEventListener('click',e=>{
+  if(suppressChipClick){suppressChipClick=false;return;}
   const button=e.target.closest('[data-pick-chip]');if(!button||game.actor!==0)return;
   const value=Number(button.dataset.pickChip),available=TableChips.split(game.players[0].stack,true).find(g=>g.value===value)?.count||0;
   if(selectedChips.filter(v=>v===value).length<available){selectedChips.push(value);updateChipSelection();}
@@ -247,26 +277,41 @@ $('resetChips').onclick=clearChipSelection;
 let suppressChipClick=false;
 $('throwChips').onclick=()=>{if(!suppressChipClick)submitChips();suppressChipClick=false;};
 function cancelChipDrag(){
-  dragChips?.ghost?.remove();dragChips=null;chipDropZone.classList.remove('drag-over');
+  if(dragChips?.moved)suppressChipClick=true;
+  dragChips?.ghost?.remove();dragChips=null;chipDropZone.classList.remove('drag-over');document.querySelector('.board-area').classList.remove('drag-over');
 }
-$('throwChips').onpointerdown=e=>{
-  if(e.button!==0||!selectedAmount()||game.actor!==0)return;
-  suppressChipClick=false;dragChips={x:e.clientX,y:e.clientY,moved:false};e.currentTarget.setPointerCapture(e.pointerId);
-};
-$('throwChips').onpointermove=e=>{
+function beginChipDrag(e){
+  const source=e.target.closest('[data-pick-chip]');
+  if(e.button!==0||game.actor!==0||(!source&&e.currentTarget!==$('throwChips'))||document.querySelector('dialog[open]'))return;
+  suppressChipClick=false;dragChips={x:e.clientX,y:e.clientY,moved:false,value:Number(source?.dataset.pickChip)||0};e.currentTarget.setPointerCapture(e.pointerId);
+}
+function moveChipDrag(e){
   if(!dragChips)return;
   if(Math.hypot(e.clientX-dragChips.x,e.clientY-dragChips.y)>6&&!dragChips.moved){
+    if(!selectedAmount()&&dragChips.value){selectedChips.push(dragChips.value);updateChipSelection();}
+    if(!selectedAmount())return;
     dragChips.moved=true;const ghost=document.createElement('div');ghost.className='chip-drag-ghost';ghost.innerHTML=$('selectedChipPreview').innerHTML;document.body.append(ghost);dragChips.ghost=ghost;
   }
   if(dragChips.ghost){dragChips.ghost.style.left=`${e.clientX}px`;dragChips.ghost.style.top=`${e.clientY}px`;}
-  const r=chipDropZone.getBoundingClientRect();chipDropZone.classList.toggle('drag-over',e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom);
-};
-$('throwChips').onpointerup=e=>{
-  if(!dragChips)return;const moved=dragChips.moved,inside=chipDropZone.classList.contains('drag-over');
+  const r=document.querySelector('.board-area').getBoundingClientRect(),inside=e.clientX>=r.left-12&&e.clientX<=r.right+12&&e.clientY>=r.top-12&&e.clientY<=r.bottom+30;
+  chipDropZone.classList.toggle('drag-over',inside);document.querySelector('.board-area').classList.toggle('drag-over',inside);
+}
+function endChipDrag(e){
+  if(!dragChips)return;moveChipDrag(e);const moved=dragChips.moved,value=dragChips.value,inside=chipDropZone.classList.contains('drag-over');
   cancelChipDrag();suppressChipClick=moved;
+  if(!moved&&value){
+    const available=TableChips.split(game.players[0].stack,true).find(g=>g.value===value)?.count||0;
+    if(selectedChips.filter(v=>v===value).length<available){selectedChips.push(value);updateChipSelection();}
+    suppressChipClick=true;
+  }
   if(moved&&inside)submitChips();
-};
-$('throwChips').onpointercancel=()=>{suppressChipClick=true;cancelChipDrag();};
+  else if(moved)$('error').textContent='未投放：筹码仍在你面前，请拖到发光的公共牌区域。';
+}
+for(const handle of [$('throwChips'),document.querySelector('.hero')]){
+  handle.addEventListener('pointerdown',beginChipDrag);handle.addEventListener('pointermove',moveChipDrag);handle.addEventListener('pointerup',endChipDrag);
+  handle.addEventListener('pointercancel',()=>{suppressChipClick=true;cancelChipDrag();});
+  handle.addEventListener('lostpointercapture',()=>{if(dragChips){suppressChipClick=true;cancelChipDrag();}});
+}
 window.addEventListener('blur',cancelChipDrag);window.addEventListener('resize',cancelChipDrag);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')cancelChipDrag();});
 function syncRange() {

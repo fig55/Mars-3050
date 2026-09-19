@@ -18,6 +18,22 @@ assert.deepEqual(Chips.move(5,{stack:5,bet:10},{...chipOptions,call:5,canRaise:f
 console.log('通过：全部 0–12000 金额的筹码守恒、点击投放金额、跟注补差、加注与短码全下校验。');
 const {Game,evaluate,bestFive,compare,bot,DEFAULT_CONTENT} = require('./src/engine.js');
 const cards = text => text.split(' ').map(s=>({r:'23456789TJQKA'.indexOf(s[0])+2,s:'shdc'.indexOf(s[1])}));
+const {handMoment}=require('./src/engine.js');
+assert.equal(handMoment(cards('As Kd'),cards('Ah 7d 2c')).label,'顶对');
+assert.equal(handMoment(cards('As Ad'),cards('Kh 7d 2c')).label,'超对');
+assert.equal(handMoment(cards('As Kd'),cards('Ah Ks 2c')).label,'两对');
+assert.equal(handMoment(cards('As Ad'),cards('Ah Ks 2c')).label,'三条');
+assert.equal(handMoment(cards('Ts 9d'),cards('8h 7s 6c')).label,'顺子');
+assert.equal(handMoment(cards('As 2s'),cards('Ks 7s 6s')).label,'同花');
+assert.equal(handMoment(cards('As Ad'),cards('Ah Ks Kc')).label,'葫芦');
+assert.equal(handMoment(cards('As Ad'),cards('Ah Ac Kc')).label,'四条');
+assert.equal(handMoment(cards('Ts 9s'),cards('8s 7s 6s')).label,'同花顺');
+assert.equal(handMoment(cards('As Kd'),cards('7h 7s 2c')),null);
+assert.equal(handMoment(cards('As 2d'),cards('Kh Ks Qc Qd 7h')),null);
+assert.equal(handMoment(cards('As 2d'),cards('Kh Ks Qc Qd')),null);
+assert.equal(handMoment(cards('2s 3d'),cards('Th Jh Qh Kh Ah')),null);
+assert.equal(handMoment(cards('As Kd'),[]),null);
+console.log('通过：顶对、超对与强牌提示；不将公共牌或未成牌误报为击中。');
 // Both default and injected-random constructors must reach a playable hand.
 for (const args of [[], [{}], [{seats:6}], [{rng:undefined}], [()=>.5], [{rng:()=>.5}], [{seats:6},()=>.5]]) {
   const game = new Game(...args);

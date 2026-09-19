@@ -310,6 +310,25 @@
     }
     return ['call'];
   }
-  root.Poker = { Game, evaluate, bestFive, compare, deck, names, bot, DEFAULT_CONFIG, DEFAULT_CONTENT };
+  // Describes the hero's known hand, never an assertion about opponents or winning.
+  function handMoment(hole, board) {
+    if(hole.length!==2||board.length<3)return null;
+    const score=evaluate([...hole,...board]),type=score[0],top=Math.max(...board.map(c=>c.r));
+    if(type<1)return null;
+    const boardScore=board.length===5?evaluate(board):[-1];
+    if(compare(score,boardScore)<=0)return null;
+    let label=names[type];
+    if(type===1){
+      if(!hole.some(c=>c.r===score[1]))return null;
+      if(hole[0].r===hole[1].r&&hole[0].r>top)label='超对';
+      else if(score[1]===top&&board.filter(c=>c.r===top).length===1)label='顶对';
+      else return null;
+    }
+    if(type===2&&[score[1],score[2]].every(rank=>board.filter(c=>c.r===rank).length>=2))return null;
+    if(type===3&&!hole.some(c=>c.r===score[1]))return null;
+    if(type===7&&!hole.some(c=>c.r===score[1]))return null;
+    return {label,type,key:`${label}:${score.slice(0,type===2||type===6?3:2).join(':')}`,cards:bestFive([...hole,...board])};
+  }
+  root.Poker = { Game, evaluate, bestFive, compare, handMoment, deck, names, bot, DEFAULT_CONFIG, DEFAULT_CONTENT };
   if (typeof module !== 'undefined') module.exports = root.Poker;
 })(typeof window !== 'undefined' ? window : globalThis);
