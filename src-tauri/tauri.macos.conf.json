@@ -1,0 +1,20 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "夜局",
+        "width": 1440,
+        "height": 940,
+        "minWidth": 1080,
+        "minHeight": 720,
+        "decorations": true,
+        "resizable": true,
+        "center": true
+      }
+    ]
+  },
+  "bundle": {
+    "targets": ["app"]
+  }
+}

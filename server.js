@@ -1,7 +1,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const allowed = { '/': 'index.html', '/index.html': 'index.html', '/style.css': 'style.css', '/engine.js': 'engine.js', '/app.js': 'app.js', '/assets/players.png': 'assets/players.png', '/assets/ajie-poses.png': 'assets/ajie-poses.png' };
+const allowed = { '/': 'index.html', '/index.html': 'index.html', '/style.css': 'style.css', '/engine.js': 'engine.js', '/chips.js': 'chips.js', '/app.js': 'app.js', '/assets/players.png': 'assets/players.png', '/assets/ajie-poses.png': 'assets/ajie-poses.png' };
 const server = http.createServer((req,res)=> {
   const file = allowed[req.url.split('?')[0]];
   if (!file) { res.writeHead(404); return res.end('Not found'); }
