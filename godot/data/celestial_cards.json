@@ -1,0 +1,470 @@
+[
+  {
+    "s": 0,
+    "r": 2,
+    "category": "恒星",
+    "name": "K2-43",
+    "radius_km": 377069,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_STELLARHOSTS_columns.html",
+    "size_note": "恒星半径；系外恒星按太阳半径 695700 km 换算"
+  },
+  {
+    "s": 0,
+    "r": 3,
+    "category": "恒星",
+    "name": "K2-123",
+    "radius_km": 410463,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_STELLARHOSTS_columns.html",
+    "size_note": "恒星半径；系外恒星按太阳半径 695700 km 换算"
+  },
+  {
+    "s": 0,
+    "r": 4,
+    "category": "恒星",
+    "name": "K2-126",
+    "radius_km": 452205,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_STELLARHOSTS_columns.html",
+    "size_note": "恒星半径；系外恒星按太阳半径 695700 km 换算"
+  },
+  {
+    "s": 0,
+    "r": 5,
+    "category": "恒星",
+    "name": "K2-85",
+    "radius_km": 493947,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_STELLARHOSTS_columns.html",
+    "size_note": "恒星半径；系外恒星按太阳半径 695700 km 换算"
+  },
+  {
+    "s": 0,
+    "r": 6,
+    "category": "恒星",
+    "name": "Kepler-1753",
+    "radius_km": 534993,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_STELLARHOSTS_columns.html",
+    "size_note": "恒星半径；系外恒星按太阳半径 695700 km 换算"
+  },
+  {
+    "s": 0,
+    "r": 7,
+    "category": "恒星",
+    "name": "Kepler-1263",
+    "radius_km": 556560,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_STELLARHOSTS_columns.html",
+    "size_note": "恒星半径；系外恒星按太阳半径 695700 km 换算"
+  },
+  {
+    "s": 0,
+    "r": 8,
+    "category": "恒星",
+    "name": "Kepler-723",
+    "radius_km": 619173,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_STELLARHOSTS_columns.html",
+    "size_note": "恒星半径；系外恒星按太阳半径 695700 km 换算"
+  },
+  {
+    "s": 0,
+    "r": 9,
+    "category": "恒星",
+    "name": "Kepler-770",
+    "radius_km": 640044,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_STELLARHOSTS_columns.html",
+    "size_note": "恒星半径；系外恒星按太阳半径 695700 km 换算"
+  },
+  {
+    "s": 0,
+    "r": 10,
+    "category": "恒星",
+    "name": "Kepler-1399",
+    "radius_km": 667872,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_STELLARHOSTS_columns.html",
+    "size_note": "恒星半径；系外恒星按太阳半径 695700 km 换算"
+  },
+  {
+    "s": 0,
+    "r": 11,
+    "category": "恒星",
+    "name": "Kepler-1542",
+    "radius_km": 688743,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_STELLARHOSTS_columns.html",
+    "size_note": "恒星半径；系外恒星按太阳半径 695700 km 换算"
+  },
+  {
+    "s": 0,
+    "r": 12,
+    "category": "恒星",
+    "name": "太阳",
+    "radius_km": 695700,
+    "source": "https://science.nasa.gov/universe/glossary/",
+    "size_note": "NASA 定义的太阳半径"
+  },
+  {
+    "s": 0,
+    "r": 13,
+    "category": "恒星",
+    "name": "Kepler-1176",
+    "radius_km": 709614,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_STELLARHOSTS_columns.html",
+    "size_note": "恒星半径；系外恒星按太阳半径 695700 km 换算"
+  },
+  {
+    "s": 0,
+    "r": 14,
+    "category": "恒星",
+    "name": "HAT-P-8",
+    "radius_km": 1092249,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_STELLARHOSTS_columns.html",
+    "size_note": "恒星半径；系外恒星按太阳半径 695700 km 换算"
+  },
+  {
+    "s": 1,
+    "r": 2,
+    "category": "行星",
+    "name": "水星",
+    "radius_km": 2439.4,
+    "source": "https://ssd.jpl.nasa.gov/planets/phys_par.html",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 1,
+    "r": 3,
+    "category": "行星",
+    "name": "火星",
+    "radius_km": 3389.5,
+    "source": "https://ssd.jpl.nasa.gov/planets/phys_par.html",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 1,
+    "r": 4,
+    "category": "行星",
+    "name": "TRAPPIST-1 h",
+    "radius_km": 4810,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_PSCompPars_columns.html",
+    "size_note": "NASA Exoplanet Archive 地球半径倍数换算"
+  },
+  {
+    "s": 1,
+    "r": 5,
+    "category": "行星",
+    "name": "TRAPPIST-1 d",
+    "radius_km": 5020,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_PSCompPars_columns.html",
+    "size_note": "NASA Exoplanet Archive 地球半径倍数换算"
+  },
+  {
+    "s": 1,
+    "r": 6,
+    "category": "行星",
+    "name": "TRAPPIST-1 e",
+    "radius_km": 5861,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_PSCompPars_columns.html",
+    "size_note": "NASA Exoplanet Archive 地球半径倍数换算"
+  },
+  {
+    "s": 1,
+    "r": 7,
+    "category": "行星",
+    "name": "金星",
+    "radius_km": 6051.8,
+    "source": "https://ssd.jpl.nasa.gov/planets/phys_par.html",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 1,
+    "r": 8,
+    "category": "行星",
+    "name": "地球",
+    "radius_km": 6371,
+    "source": "https://ssd.jpl.nasa.gov/planets/phys_par.html",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 1,
+    "r": 9,
+    "category": "行星",
+    "name": "TRAPPIST-1 f",
+    "radius_km": 6658,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_PSCompPars_columns.html",
+    "size_note": "NASA Exoplanet Archive 地球半径倍数换算"
+  },
+  {
+    "s": 1,
+    "r": 10,
+    "category": "行星",
+    "name": "TRAPPIST-1 g",
+    "radius_km": 7193,
+    "source": "https://exoplanetarchive.ipac.caltech.edu/docs/API_PSCompPars_columns.html",
+    "size_note": "NASA Exoplanet Archive 地球半径倍数换算"
+  },
+  {
+    "s": 1,
+    "r": 11,
+    "category": "行星",
+    "name": "海王星",
+    "radius_km": 24622,
+    "source": "https://ssd.jpl.nasa.gov/planets/phys_par.html",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 1,
+    "r": 12,
+    "category": "行星",
+    "name": "天王星",
+    "radius_km": 25362,
+    "source": "https://ssd.jpl.nasa.gov/planets/phys_par.html",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 1,
+    "r": 13,
+    "category": "行星",
+    "name": "土星",
+    "radius_km": 58232,
+    "source": "https://ssd.jpl.nasa.gov/planets/phys_par.html",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 1,
+    "r": 14,
+    "category": "行星",
+    "name": "木星",
+    "radius_km": 69911,
+    "source": "https://ssd.jpl.nasa.gov/planets/phys_par.html",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 2,
+    "r": 2,
+    "category": "卫星",
+    "name": "土卫一 Mimas",
+    "radius_km": 198.2,
+    "source": "https://ssd.jpl.nasa.gov/sats/phys_par/",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 2,
+    "r": 3,
+    "category": "卫星",
+    "name": "天卫五 Miranda",
+    "radius_km": 235.8,
+    "source": "https://ssd.jpl.nasa.gov/sats/phys_par/",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 2,
+    "r": 4,
+    "category": "卫星",
+    "name": "土卫二 Enceladus",
+    "radius_km": 252.1,
+    "source": "https://ssd.jpl.nasa.gov/sats/phys_par/",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 2,
+    "r": 5,
+    "category": "卫星",
+    "name": "土卫三 Tethys",
+    "radius_km": 531.1,
+    "source": "https://ssd.jpl.nasa.gov/sats/phys_par/",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 2,
+    "r": 6,
+    "category": "卫星",
+    "name": "土卫四 Dione",
+    "radius_km": 561.4,
+    "source": "https://ssd.jpl.nasa.gov/sats/phys_par/",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 2,
+    "r": 7,
+    "category": "卫星",
+    "name": "天卫一 Ariel",
+    "radius_km": 578.9,
+    "source": "https://ssd.jpl.nasa.gov/sats/phys_par/",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 2,
+    "r": 8,
+    "category": "卫星",
+    "name": "天卫二 Umbriel",
+    "radius_km": 584.7,
+    "source": "https://ssd.jpl.nasa.gov/sats/phys_par/",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 2,
+    "r": 9,
+    "category": "卫星",
+    "name": "冥卫一 Charon",
+    "radius_km": 606,
+    "source": "https://ssd.jpl.nasa.gov/sats/phys_par/",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 2,
+    "r": 10,
+    "category": "卫星",
+    "name": "土卫八 Iapetus",
+    "radius_km": 734.3,
+    "source": "https://ssd.jpl.nasa.gov/sats/phys_par/",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 2,
+    "r": 11,
+    "category": "卫星",
+    "name": "土卫五 Rhea",
+    "radius_km": 763.5,
+    "source": "https://ssd.jpl.nasa.gov/sats/phys_par/",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 2,
+    "r": 12,
+    "category": "卫星",
+    "name": "月球",
+    "radius_km": 1737.4,
+    "source": "https://ssd.jpl.nasa.gov/sats/phys_par/",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 2,
+    "r": 13,
+    "category": "卫星",
+    "name": "土卫六 Titan",
+    "radius_km": 2574.76,
+    "source": "https://ssd.jpl.nasa.gov/sats/phys_par/",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 2,
+    "r": 14,
+    "category": "卫星",
+    "name": "木卫三 Ganymede",
+    "radius_km": 2631.2,
+    "source": "https://ssd.jpl.nasa.gov/sats/phys_par/",
+    "size_note": "平均半径，约值"
+  },
+  {
+    "s": 3,
+    "r": 2,
+    "category": "小天体",
+    "name": "糸川 Itokawa",
+    "radius_km": 0.165,
+    "source": "https://ssd-api.jpl.nasa.gov/doc/sbdb.html",
+    "size_note": "JPL 直径除以 2"
+  },
+  {
+    "s": 3,
+    "r": 3,
+    "category": "小天体",
+    "name": "贝努 Bennu",
+    "radius_km": 0.24222,
+    "source": "https://ssd-api.jpl.nasa.gov/doc/sbdb.html",
+    "size_note": "JPL 直径除以 2"
+  },
+  {
+    "s": 3,
+    "r": 4,
+    "category": "小天体",
+    "name": "龙宫 Ryugu",
+    "radius_km": 0.448,
+    "source": "https://ssd-api.jpl.nasa.gov/doc/sbdb.html",
+    "size_note": "JPL 直径除以 2"
+  },
+  {
+    "s": 3,
+    "r": 5,
+    "category": "小天体",
+    "name": "加斯普拉 Gaspra",
+    "radius_km": 6.1,
+    "source": "https://ssd-api.jpl.nasa.gov/doc/sbdb.html",
+    "size_note": "JPL 直径除以 2"
+  },
+  {
+    "s": 3,
+    "r": 6,
+    "category": "小天体",
+    "name": "爱神 Eros",
+    "radius_km": 8.42,
+    "source": "https://ssd-api.jpl.nasa.gov/doc/sbdb.html",
+    "size_note": "JPL 直径除以 2"
+  },
+  {
+    "s": 3,
+    "r": 7,
+    "category": "小天体",
+    "name": "艾达 Ida",
+    "radius_km": 16,
+    "source": "https://ssd-api.jpl.nasa.gov/doc/sbdb.html",
+    "size_note": "JPL 直径除以 2"
+  },
+  {
+    "s": 3,
+    "r": 8,
+    "category": "小天体",
+    "name": "马蒂尔德 Mathilde",
+    "radius_km": 26.4,
+    "source": "https://ssd-api.jpl.nasa.gov/doc/sbdb.html",
+    "size_note": "JPL 直径除以 2"
+  },
+  {
+    "s": 3,
+    "r": 9,
+    "category": "小天体",
+    "name": "鲁特西亚 Lutetia",
+    "radius_km": 49,
+    "source": "https://ssd-api.jpl.nasa.gov/doc/sbdb.html",
+    "size_note": "JPL 直径除以 2"
+  },
+  {
+    "s": 3,
+    "r": 10,
+    "category": "小天体",
+    "name": "西尔维亚 Sylvia",
+    "radius_km": 126.5255,
+    "source": "https://ssd-api.jpl.nasa.gov/doc/sbdb.html",
+    "size_note": "JPL 直径除以 2"
+  },
+  {
+    "s": 3,
+    "r": 11,
+    "category": "小天体",
+    "name": "健神星 Hygiea",
+    "radius_km": 203.56,
+    "source": "https://ssd-api.jpl.nasa.gov/doc/sbdb.html",
+    "size_note": "JPL 直径除以 2"
+  },
+  {
+    "s": 3,
+    "r": 12,
+    "category": "小天体",
+    "name": "智神星 Pallas",
+    "radius_km": 256.5,
+    "source": "https://ssd-api.jpl.nasa.gov/doc/sbdb.html",
+    "size_note": "JPL 直径除以 2"
+  },
+  {
+    "s": 3,
+    "r": 13,
+    "category": "小天体",
+    "name": "灶神星 Vesta",
+    "radius_km": 261.385,
+    "source": "https://ssd-api.jpl.nasa.gov/doc/sbdb.html",
+    "size_note": "JPL 直径除以 2"
+  },
+  {
+    "s": 3,
+    "r": 14,
+    "category": "小天体",
+    "name": "谷神星 Ceres",
+    "radius_km": 469.7,
+    "source": "https://ssd-api.jpl.nasa.gov/doc/sbdb.html",
+    "size_note": "JPL 直径除以 2"
+  }
+]
