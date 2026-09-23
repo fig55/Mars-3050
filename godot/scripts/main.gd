@@ -2,8 +2,8 @@ extends Control
 
 const SAVE_FILE := "user://mars_v2_save.json"
 const BG := Color("101721")
-const PANEL := Color("1a2933")
-const TABLE := Color("153a39")
+const PANEL := Color("1a2933dc")
+const TABLE := Color("153a39e8")
 const GOLD := Color("e9bc74")
 const LIGHT := Color("f5e8d0")
 const MUTED := Color("a8b8b7")
@@ -11,15 +11,22 @@ const CRYSTAL_COLORS := [Color("f2bd77"), Color("a7e4e4"), Color("bd9cf2"), Colo
 
 var game: PokerGame
 var catalog: Array = []
+var visuals: Dictionary = {}
+var visual_indices := {"environments": 0, "tables": 0, "people": 0}
 var selected: Dictionary = {}
 var drag_value := 0
+var drag_source := ""
 var drag_start := Vector2.ZERO
 var dragging := false
 var drag_ghost: Label
+var environment_view: TextureRect
+var table_view: TextureRect
+var table_panel: PanelContainer
 var table_drop: Control
 var seat_boxes: Array = []
 var seat_labels: Array = []
 var seat_card_labels: Array = []
+var seat_portraits: Array = []
 var board_cards: Array = []
 var pot_label: Label
 var phase_label: Label
@@ -28,12 +35,15 @@ var status_label: Label
 var hero_hand_label: Label
 var selected_label: Label
 var bank_box: HBoxContainer
+var tray_drop: PanelContainer
+var tray_label: Label
 var action_box: HBoxContainer
 var result_label: RichTextLabel
 var journal: RichTextLabel
 var rules_layer: Control
 var rules_dialog: PanelContainer
 var pulse_layer: Label
+var emote_bubble: Label
 var displayed_logs := 0
 var last_moment := ""
 var busy := false
@@ -47,7 +57,10 @@ func _ready() -> void:
 	if not CelestialCatalog.validate(catalog):
 		push_error("52 张天体牌目录未通过校验")
 	game = PokerGame.new(_read_stacks())
+	visuals = VisualCatalog.load_catalog()
+	_load_visual_preferences()
 	_build_ui()
+	_apply_visuals()
 	game.start()
 	_refresh()
 	_schedule_advance()
@@ -60,7 +73,7 @@ func _process(delta: float) -> void:
 		var dots := ".".repeat(1 + int(Time.get_ticks_msec() / 350) % 3)
 		turn_label.text = "%s 正在思考%s" % [game.players[game.actor].name, dots]
 	elif game.actor == 0:
-		turn_label.text = "轮到你 · 可点选晶片或从桌前拖入底池"
+		turn_label.text = "轮到你 · 先数晶片到桌前，再推入能源池"
 	elif game.awaiting_street:
 		turn_label.text = "等待下一张公共牌…"
 	elif game.phase == "done":
@@ -108,6 +121,13 @@ func _build_ui() -> void:
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(background)
+	environment_view = TextureRect.new()
+	environment_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	environment_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	environment_view.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	environment_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	environment_view.modulate.a = 0.64
+	add_child(environment_view)
 	var root := VBoxContainer.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_theme_constant_override("separation", 10)
@@ -121,12 +141,24 @@ func _build_ui() -> void:
 	header.custom_minimum_size.y = 60
 	root.add_child(header)
 	var title := _label("火星牌局  /  MARS TABLE", 30, GOLD)
-	title.custom_minimum_size.x = 405
+	title.custom_minimum_size.x = 380
 	title.autowrap_mode = TextServer.AUTOWRAP_OFF
 	header.add_child(title)
 	header.add_spacer(false)
+	for selector in [["environments", "场景"], ["tables", "桌面"], ["people", "人物"]]:
+		var choice := OptionButton.new()
+		choice.custom_minimum_size = Vector2(113, 42)
+		choice.add_theme_font_size_override("font_size", 15)
+		choice.add_theme_color_override("font_color", LIGHT)
+		choice.add_theme_stylebox_override("normal", _panel(PANEL, 8, GOLD))
+		for entry in visuals.get(selector[0], []):
+			choice.add_item("%s · %s" % [selector[1], entry.name])
+		if choice.item_count > 0:
+			choice.select(clampi(visual_indices[selector[0]], 0, choice.item_count - 1))
+		choice.item_selected.connect(_change_visual.bind(selector[0]))
+		header.add_child(choice)
 	phase_label = _label("", 17, MUTED)
-	phase_label.custom_minimum_size.x = 205
+	phase_label.custom_minimum_size.x = 165
 	phase_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	header.add_child(phase_label)
 	header.add_child(_button("玩法图示", _show_rules))
@@ -155,6 +187,15 @@ func _build_ui() -> void:
 	journal.add_theme_font_size_override("normal_font_size", 17)
 	journal.add_theme_color_override("default_color", LIGHT)
 	side_inner.add_child(journal)
+	side_inner.add_child(_label("发送表情", 16, GOLD))
+	var emotes := HBoxContainer.new()
+	emotes.add_theme_constant_override("separation", 3)
+	side_inner.add_child(emotes)
+	for item in [["☺", "微笑"], ["👍", "赞"], ["😮", "惊讶"], ["🤔", "思考"]]:
+		var button := _button(item[0], _send_emote.bind(item[0], item[1]))
+		button.custom_minimum_size = Vector2(54, 42)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		emotes.add_child(button)
 
 	var top_seats := HBoxContainer.new()
 	top_seats.custom_minimum_size.y = 124
@@ -163,12 +204,24 @@ func _build_ui() -> void:
 	for seat in [1, 2, 3]:
 		_create_seat(top_seats, seat)
 
-	var table_panel := PanelContainer.new()
+	table_panel = PanelContainer.new()
 	table_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	table_panel.custom_minimum_size.y = 220
+	table_panel.clip_contents = true
 	table_panel.add_theme_stylebox_override("panel", _panel(TABLE, 34, Color("477367")))
 	main.add_child(table_panel)
 	table_drop = table_panel
+	table_view = TextureRect.new()
+	table_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	table_view.offset_left = 8
+	table_view.offset_right = -8
+	table_view.offset_top = 8
+	table_view.offset_bottom = -8
+	table_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	table_view.stretch_mode = TextureRect.STRETCH_SCALE
+	table_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	table_view.modulate.a = 0.72
+	table_panel.add_child(table_view)
 	var table_inner := VBoxContainer.new()
 	table_inner.alignment = BoxContainer.ALIGNMENT_CENTER
 	table_inner.add_theme_constant_override("separation", 10)
@@ -206,8 +259,8 @@ func _build_ui() -> void:
 	controls.add_child(control_inner)
 	var bank_header := HBoxContainer.new()
 	control_inner.add_child(bank_header)
-	var bank_title := _label("桌前能源晶片 · 点击数取 / 拖到牌桌", 17, GOLD)
-	bank_title.custom_minimum_size.x = 450
+	var bank_title := _label("能源晶片 · 数取到桌前 → 推入能源池", 17, GOLD)
+	bank_title.custom_minimum_size.x = 440
 	bank_title.autowrap_mode = TextServer.AUTOWRAP_OFF
 	bank_header.add_child(bank_title)
 	bank_header.add_spacer(false)
@@ -215,9 +268,23 @@ func _build_ui() -> void:
 	selected_label.custom_minimum_size.x = 170
 	selected_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	bank_header.add_child(selected_label)
+	var staging_row := HBoxContainer.new()
+	staging_row.add_theme_constant_override("separation", 8)
+	control_inner.add_child(staging_row)
 	bank_box = HBoxContainer.new()
 	bank_box.add_theme_constant_override("separation", 6)
-	control_inner.add_child(bank_box)
+	bank_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	staging_row.add_child(bank_box)
+	tray_drop = PanelContainer.new()
+	tray_drop.custom_minimum_size = Vector2(335, 58)
+	tray_drop.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tray_drop.add_theme_stylebox_override("panel", _panel(Color("3a3030e6"), 12, GOLD))
+	tray_drop.gui_input.connect(_tray_input)
+	staging_row.add_child(tray_drop)
+	tray_label = _label("桌前待推 · 空", 17, GOLD)
+	tray_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tray_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	tray_drop.add_child(tray_label)
 	action_box = HBoxContainer.new()
 	action_box.add_theme_constant_override("separation", 8)
 	control_inner.add_child(action_box)
@@ -265,6 +332,11 @@ func _build_ui() -> void:
 	drag_ghost.visible = false
 	drag_ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(drag_ghost)
+	emote_bubble = _label("", 27, GOLD)
+	emote_bubble.visible = false
+	emote_bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	emote_bubble.add_theme_stylebox_override("normal", _panel(Color("27363be8"), 15, GOLD))
+	add_child(emote_bubble)
 
 func _create_seat(parent: HBoxContainer, seat: int) -> void:
 	var panel := PanelContainer.new()
@@ -274,10 +346,22 @@ func _create_seat(parent: HBoxContainer, seat: int) -> void:
 	seat_boxes.resize(6)
 	seat_labels.resize(6)
 	seat_card_labels.resize(6)
+	seat_portraits.resize(6)
 	seat_boxes[seat] = panel
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	panel.add_child(row)
+	var portrait := TextureRect.new()
+	portrait.custom_minimum_size = Vector2(70, 98)
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(portrait)
+	seat_portraits[seat] = portrait
 	var inner := VBoxContainer.new()
 	inner.add_theme_constant_override("separation", 2)
-	panel.add_child(inner)
+	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(inner)
 	var name := _label("", 18, GOLD)
 	inner.add_child(name)
 	seat_labels[seat] = name
@@ -297,6 +381,13 @@ func _clear(container: Node) -> void:
 	for child in container.get_children():
 		child.queue_free()
 
+func _radius_text(radius: float) -> String:
+	if radius < 1.0:
+		return "%.3f km" % radius
+	if radius < 10.0:
+		return "%.1f km" % radius
+	return "%.0f km" % radius
+
 func _refresh() -> void:
 	phase_label.text = "第 %d 手   /   %s" % [game.hand, {"preflop": "翻牌前", "flop": "翻牌", "turn": "转牌", "river": "河牌", "done": "结算"}.get(game.phase, "准备")]
 	pot_label.text = "能源池  %d" % game.pot()
@@ -306,17 +397,17 @@ func _refresh() -> void:
 		seat_labels[i].add_theme_color_override("font_color", GOLD if game.actor == i else LIGHT)
 		var cards_text := "  ".join(player.cards.map(func(card): return CelestialCatalog.short_text(catalog, card))) if i == 0 or game.showdown else "✦  未亮牌  ✦"
 		var stacks: Array = Crystals.split(player.stack, true)
-		var crystals_text := " ".join(stacks.map(func(group): return "%d×%d" % [group.value, group.count]))
+		var crystals_text := " ".join(stacks.map(func(group): return "%d×%d" % [group.value, group.count - (selected.get(group.value, 0) if i == 0 else 0)]))
 		seat_card_labels[i].text = "%s\n%s · 本轮 %d · 本手 %d\n◆ %s" % [cards_text, player.last, player.bet, player.total, crystals_text if not crystals_text.is_empty() else "无晶片"]
 		seat_boxes[i].add_theme_stylebox_override("panel", _panel(Color("30403b") if game.actor == i else PANEL, 14, GOLD if game.actor == i else Color.TRANSPARENT))
 	for i in range(5):
 		if i < game.board.size():
 			var card: Dictionary = game.board[i]
 			var body := CelestialCatalog.lookup(catalog, card)
-			board_cards[i].text = "%s  %s\n%s\n%.0f km" % [CelestialCatalog.rank_text(card.r), CelestialCatalog.ICONS[card.s], body.get("name", "?"), body.get("radius_km", 0.0)]
+			board_cards[i].text = "%s  %s\n%s\n%s" % [CelestialCatalog.rank_text(card.r), CelestialCatalog.ICONS[card.s], body.get("name", "?"), _radius_text(float(body.get("radius_km", 0.0)))]
 		else:
 			board_cards[i].text = "✦\n待发牌"
-	var moment := PokerRules.hand_moment(game.players[0].cards, game.board)
+	var moment := {} if game.players[0].folded else PokerRules.hand_moment(game.players[0].cards, game.board)
 	hero_hand_label.text = "你的当前牌型：%s" % (moment.label if not moment.is_empty() else "等待成牌")
 	if not moment.is_empty() and moment.key != last_moment:
 		last_moment = moment.key
@@ -328,6 +419,7 @@ func _refresh() -> void:
 			tween.tween_property(board_cards[i], "modulate:a", 1.0, 0.45)
 	last_board_count = game.board.size()
 	_render_bank()
+	_render_tray()
 	_render_actions()
 	_render_result()
 	journal.text = "\n\n".join(game.logs)
@@ -340,18 +432,32 @@ func _render_bank() -> void:
 		var value: int = group.value
 		var count: int = group.count
 		var chosen: int = selected.get(value, 0)
+		var available := count - chosen
 		var crystal := Button.new()
-		crystal.text = "◆ %d\n× %d%s" % [value, count, "  已选 %d" % chosen if chosen > 0 else ""]
-		crystal.custom_minimum_size = Vector2(110, 58)
+		crystal.text = "◆ %d\n可数 × %d" % [value, available]
+		crystal.custom_minimum_size = Vector2(85, 58)
 		crystal.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		crystal.disabled = available <= 0
 		crystal.add_theme_font_size_override("font_size", 17)
 		crystal.add_theme_color_override("font_color", BG)
 		var index: int = Crystals.DENOMINATIONS.find(value)
-		crystal.add_theme_stylebox_override("normal", _panel(CRYSTAL_COLORS[index], 12, GOLD if chosen else Color.TRANSPARENT))
+		crystal.add_theme_stylebox_override("normal", _panel(CRYSTAL_COLORS[index], 12))
 		crystal.add_theme_stylebox_override("hover", _panel(CRYSTAL_COLORS[index].lightened(0.18), 12))
 		crystal.gui_input.connect(_crystal_input.bind(value))
 		bank_box.add_child(crystal)
-	selected_label.text = "已数 %d / 可用 %d" % [_selected_amount(), player.stack]
+	selected_label.text = "桌前 %d / 余额 %d" % [_selected_amount(), player.stack]
+
+func _render_tray() -> void:
+	var amount := _selected_amount()
+	if amount == 0:
+		tray_label.text = "桌前暂存区 · 空\n从左侧数晶片到这里"
+	else:
+		var parts: Array = []
+		for value in Crystals.DENOMINATIONS:
+			if selected.get(value, 0) > 0:
+				parts.append("%d×%d" % [value, selected[value]])
+		tray_label.text = "桌前待推 %d · 拖向能源池\n◆ %s" % [amount, " ".join(parts)]
+	tray_drop.add_theme_stylebox_override("panel", _panel(Color("3a3030e6") if amount else Color("273138dd"), 12, GOLD if amount else MUTED))
 
 func _render_actions() -> void:
 	_clear(action_box)
@@ -366,14 +472,11 @@ func _render_actions() -> void:
 		action_box.add_child(waiting)
 		return
 	action_box.add_child(_button("弃牌", func(): _hero_act("fold")))
-	action_box.add_child(_button("过牌" if opt.call == 0 else "跟注 %d" % opt.call, func(): _hero_act("call"), true))
-	action_box.add_child(_button("投放已选 %d" % _selected_amount(), _drop_selected))
-	action_box.add_child(_button("清空已选", _clear_selected))
-	if opt.can_raise:
-		var minimum: int = mini(opt.min, opt.max)
-		action_box.add_child(_button("最小加注至 %d" % minimum, func(): _hero_act("raise", minimum)))
-		action_box.add_child(_button("全下 %d" % opt.max, func(): _hero_act("raise", opt.max)))
-	status_label.text = "跟注需另投 %d；加注至少到 %d；拖动晶片也可投放。" % [opt.call, opt.min]
+	if opt.call == 0:
+		action_box.add_child(_button("过牌", func(): _hero_act("call"), true))
+	action_box.add_child(_button("推入能源池 %d" % _selected_amount(), _drop_selected, true))
+	action_box.add_child(_button("收回桌前晶片", _clear_selected))
+	status_label.text = "跟注需从桌前推 %d；加注至少到 %d；最多到 %d。先数取，再拖动桌前晶片或按“推入能源池”。" % [opt.call, opt.min, opt.max]
 
 func _render_result() -> void:
 	if game.phase != "done":
@@ -387,6 +490,17 @@ func _render_result() -> void:
 func _crystal_input(event: InputEvent, value: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		drag_value = value
+		drag_source = "bank"
+		drag_start = event.global_position
+		dragging = false
+
+func _tray_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		if _selected_amount() == 0:
+			status_label.text = "先从左侧数晶片到桌前。"
+			return
+		drag_value = _selected_amount()
+		drag_source = "tray"
 		drag_start = event.global_position
 		dragging = false
 
@@ -397,21 +511,24 @@ func _input(event: InputEvent) -> void:
 		if event.position.distance_to(drag_start) > 8:
 			dragging = true
 			drag_ghost.visible = true
-			drag_ghost.text = "◆ %d" % drag_value
+			drag_ghost.text = "◆ 待推 %d" % drag_value if drag_source == "tray" else "◆ %d" % drag_value
 			drag_ghost.global_position = event.position + Vector2(15, 10)
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 		var was_dragging := dragging
 		var value := drag_value
+		var source := drag_source
 		drag_value = 0
+		drag_source = ""
 		dragging = false
 		drag_ghost.visible = false
-		if was_dragging and table_drop.get_global_rect().has_point(event.position):
-			_select_crystal(value)
+		if source == "tray" and was_dragging and table_drop.get_global_rect().has_point(event.position):
 			_drop_selected()
-		elif not was_dragging and drag_start.distance_to(event.position) < 12:
+		elif source == "bank" and was_dragging and tray_drop.get_global_rect().has_point(event.position):
+			_select_crystal(value)
+		elif source == "bank" and not was_dragging and drag_start.distance_to(event.position) < 12:
 			_select_crystal(value)
 		else:
-			status_label.text = "已取消投放；晶片仍在桌前。"
+			status_label.text = "已取消移动；桌前待推晶片与余额未变。" if source == "tray" else "请先把晶片数到自己桌前，再推入能源池。"
 
 func _select_crystal(value: int) -> void:
 	var inventory := Crystals.split(game.players[0].stack, true)
@@ -423,8 +540,7 @@ func _select_crystal(value: int) -> void:
 		status_label.text = "该面额已数完；不会从桌前消失。"
 		return
 	selected[value] = selected.get(value, 0) + 1
-	_render_bank()
-	_render_actions()
+	_refresh()
 
 func _selected_amount() -> int:
 	var amount := 0
@@ -434,8 +550,7 @@ func _selected_amount() -> int:
 
 func _clear_selected() -> void:
 	selected.clear()
-	_render_bank()
-	_render_actions()
+	_refresh()
 	status_label.text = "已取消数取；桌前能源未变化。"
 
 func _drop_selected() -> void:
@@ -458,7 +573,7 @@ func _hero_act(action: String, amount: int = 0) -> void:
 	_schedule_advance()
 
 func _fly_crystals(amount: int) -> void:
-	var origin := bank_box.get_global_rect().get_center()
+	var origin := tray_drop.get_global_rect().get_center()
 	var target := table_drop.get_global_rect().get_center()
 	for i in range(mini(5, maxi(1, amount / 100))):
 		var fly := _label("◆", 25, CRYSTAL_COLORS[i % 5])
@@ -566,6 +681,60 @@ func _rule_text(value: String, size: int, color: Color = LIGHT) -> Label:
 func _show_rules() -> void:
 	rules_layer.show()
 	rules_layer.move_to_front()
+
+func _change_visual(index: int, kind: String) -> void:
+	visual_indices[kind] = index
+	_apply_visuals()
+	_save_visual_preferences()
+
+func _apply_visuals() -> void:
+	var environments: Array = visuals.get("environments", [])
+	if not environments.is_empty():
+		var entry: Dictionary = environments[clampi(visual_indices.environments, 0, environments.size() - 1)]
+		environment_view.texture = VisualCatalog.texture(str(entry.get("image", "")))
+	var tables: Array = visuals.get("tables", [])
+	if not tables.is_empty():
+		var entry: Dictionary = tables[clampi(visual_indices.tables, 0, tables.size() - 1)]
+		var table_color := Color(str(entry.get("color", "#173b3a")))
+		table_color.a = 0.84
+		table_panel.add_theme_stylebox_override("panel", _panel(table_color, 34, Color(str(entry.get("border", "#957754")))))
+		table_view.texture = VisualCatalog.texture(str(entry.get("image", "")))
+		table_view.visible = table_view.texture != null
+	var people: Array = visuals.get("people", [])
+	if not people.is_empty():
+		var entry: Dictionary = people[clampi(visual_indices.people, 0, people.size() - 1)]
+		for seat in range(seat_portraits.size()):
+			var portrait: TextureRect = seat_portraits[seat]
+			portrait.texture = VisualCatalog.portrait(entry, seat)
+			portrait.visible = portrait.texture != null
+
+func _load_visual_preferences() -> void:
+	var file := FileAccess.open("user://mars_v2_visual_prefs.json", FileAccess.READ)
+	if file == null:
+		return
+	var saved: Variant = JSON.parse_string(file.get_as_text())
+	if not saved is Dictionary:
+		return
+	for kind in visual_indices:
+		if saved.get(kind) is int:
+			visual_indices[kind] = saved[kind]
+
+func _save_visual_preferences() -> void:
+	var file := FileAccess.open("user://mars_v2_visual_prefs.json", FileAccess.WRITE)
+	if file != null:
+		file.store_string(JSON.stringify(visual_indices))
+
+func _send_emote(glyph: String, meaning: String) -> void:
+	game.add_log("你发送表情：%s %s" % [glyph, meaning])
+	journal.text = "\n\n".join(game.logs)
+	emote_bubble.text = "%s  %s" % [glyph, meaning]
+	emote_bubble.global_position = seat_boxes[0].get_global_rect().position + Vector2(115, -22)
+	emote_bubble.modulate.a = 1.0
+	emote_bubble.show()
+	var tween := create_tween()
+	tween.tween_interval(1.4)
+	tween.tween_property(emote_bubble, "modulate:a", 0.0, 0.5)
+	tween.finished.connect(func(): emote_bubble.hide())
 
 func _read_stacks() -> Array:
 	if not FileAccess.file_exists(SAVE_FILE):

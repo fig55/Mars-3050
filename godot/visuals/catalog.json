@@ -1,0 +1,14 @@
+{
+  "environments": [
+    {"id": "habitat", "name": "暮色居住舱", "image": "res://visuals/assets/mars-habitat.png"},
+    {"id": "observatory", "name": "夜间观测台", "image": "res://visuals/assets/mars-observatory.png"}
+  ],
+  "tables": [
+    {"id": "teal", "name": "深青桌面", "image": "", "color": "#173b3a", "border": "#957754"},
+    {"id": "basalt", "name": "玄武岩桌面", "image": "res://visuals/assets/basalt-table.png", "color": "#302f34", "border": "#a17c62"}
+  ],
+  "people": [
+    {"id": "night", "name": "夜局人物", "atlas": "res://visuals/assets/night-players.png", "regions": [[], [0, 0, 396, 793], [396, 0, 397, 793], [793, 0, 397, 793], [1190, 0, 396, 793], [1586, 0, 397, 793]], "portraits": ["", "", "", "", "", ""]},
+    {"id": "names", "name": "仅显示席位", "atlas": "", "regions": [[], [], [], [], [], []], "portraits": ["", "", "", "", "", ""]}
+  ]
+}
