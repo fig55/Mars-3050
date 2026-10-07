@@ -12,6 +12,7 @@ var board: Array = []
 var cards_left: Array = []
 var results: Array = []
 var logs: Array = []
+var journal_entries: Array = []
 var phase := "ready"
 var hand := 0
 var button := -1
@@ -63,8 +64,11 @@ func pay(seat: int, amount: int) -> int:
 
 func add_log(message: String) -> void:
 	logs.push_front(message)
+	journal_entries.push_front({"hand": hand, "phase": phase, "message": message})
 	if logs.size() > 80:
 		logs.resize(80)
+	if journal_entries.size() > 80:
+		journal_entries.resize(80)
 
 func start() -> bool:
 	if phase != "ready" and phase != "done":

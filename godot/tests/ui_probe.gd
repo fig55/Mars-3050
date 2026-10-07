@@ -16,6 +16,16 @@ func run() -> void:
 	var result: Rect2 = main.result_label.get_global_rect()
 	var table: Rect2 = main.table_drop.get_global_rect()
 	var valid: bool = bounds.encloses(dialog) and bounds.encloses(result) and table.end.y < result.position.y
+	valid = valid and main.drag_ghost.size.x <= 70 and main.drag_ghost.size.y <= 70
+	valid = valid and main.table_view.texture != null and main.hero_cards.size() == 2 and main.hero_cards[0].art.texture != null
+	valid = valid and _pot_art_amount(main) == main.game.pot()
+	main.drag_ghost.texture = EnergyCrystalArt.texture(25)
+	valid = valid and main.drag_ghost.size.x <= 70 and main.drag_ghost.size.y <= 70
+	main.game.board.append(main.game.players[0].cards[0])
+	main._refresh()
+	valid = valid and main.board_cards[0].art.texture != null
+	main.game.board.clear()
+	main._refresh()
 	if not valid:
 		push_error("规则弹层或结算区超出设计视口：dialog=%s result=%s table=%s" % [dialog, result, table])
 	main.rules_layer.hide()
@@ -40,8 +50,13 @@ func run() -> void:
 		main._select_crystal(5)
 	main._drop_selected()
 	valid = valid and main._selected_amount() == 0 and main.game.players[0].stack == initial_stack - 20
+	valid = valid and _pot_art_amount(main) == main.game.pot()
 	main._send_emote("☺", "微笑")
 	valid = valid and main.game.logs[0].contains("发送表情")
+	main.game.phase = "flop"
+	main.game.add_log("翻牌测试")
+	main._render_journal()
+	valid = valid and "第 2 轮" in main.journal.text and "第 1 轮" in main.journal.text
 	main.game.phase = "done"
 	main.game.results = [{"seats": [0], "names": "你", "amount": 120, "label": "主池 · 一对"}, {"seats": [1, 2], "names": "老陈、林小姐", "amount": 80, "label": "边池 · 平分"}]
 	main._render_result()
@@ -50,3 +65,9 @@ func run() -> void:
 	main.queue_free()
 	await process_frame
 	quit(0 if valid else 1)
+
+func _pot_art_amount(main: Control) -> int:
+	var amount := 0
+	for value in main.pot_inventory:
+		amount += int(value) * int(main.pot_inventory[value])
+	return amount
