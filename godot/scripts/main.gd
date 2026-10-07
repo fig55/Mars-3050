@@ -371,7 +371,7 @@ func _build_ui() -> void:
 func _create_seat(parent: HBoxContainer, seat: int) -> void:
 	var panel := PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.add_theme_stylebox_override("panel", _panel(Color("14232ab3"), 14))
+	panel.add_theme_stylebox_override("panel", _panel(Color("14232a88"), 14))
 	parent.add_child(panel)
 	seat_boxes.resize(6)
 	seat_labels.resize(6)
@@ -381,12 +381,17 @@ func _create_seat(parent: HBoxContainer, seat: int) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	panel.add_child(row)
+	var portrait_holder := Control.new()
+	portrait_holder.custom_minimum_size = Vector2(96, 74) if seat != 0 else Vector2(32, 74)
+	portrait_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(portrait_holder)
 	var portrait := TextureRect.new()
-	portrait.custom_minimum_size = Vector2(70, 74)
+	portrait.size = Vector2(103, 124)
+	portrait.position = Vector2(-8, -14)
 	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(portrait)
+	portrait_holder.add_child(portrait)
 	seat_portraits[seat] = portrait
 	var inner := VBoxContainer.new()
 	inner.add_theme_constant_override("separation", 2)
@@ -415,7 +420,7 @@ func _refresh() -> void:
 		var stacks: Array = Crystals.split(player.stack, true)
 		var crystals_text := " ".join(stacks.map(func(group): return "%d×%d" % [group.value, group.count - (selected.get(group.value, 0) if i == 0 else 0)]))
 		seat_card_labels[i].text = "%s\n%s · 本轮 %d · 本手 %d\n◆ %s" % [cards_text, player.last, player.bet, player.total, crystals_text if not crystals_text.is_empty() else "无晶片"]
-		seat_boxes[i].add_theme_stylebox_override("panel", _panel(Color("30403bd9") if game.actor == i else Color("14232ab3"), 14, GOLD if game.actor == i else Color.TRANSPARENT))
+		seat_boxes[i].add_theme_stylebox_override("panel", _panel(Color("30403baa") if game.actor == i else Color("14232a88"), 14, GOLD if game.actor == i else Color.TRANSPARENT))
 	for i in range(5):
 		if i < game.board.size():
 			var card: Dictionary = game.board[i]

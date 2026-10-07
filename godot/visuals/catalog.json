@@ -8,7 +8,7 @@
     {"id": "basalt", "name": "玄武岩牌桌", "image": "res://visuals/assets/oval-basalt-table.png", "color": "#302f34", "border": "#a17c62"}
   ],
   "people": [
-    {"id": "night", "name": "夜局人物", "atlas": "res://visuals/assets/night-players.png", "regions": [[], [0, 0, 396, 793], [396, 0, 397, 793], [793, 0, 397, 793], [1190, 0, 396, 793], [1586, 0, 397, 793]], "portraits": ["", "", "", "", "", ""]},
+    {"id": "night", "name": "夜局人物", "atlas": "res://visuals/assets/night-players.png", "regions": [[], [0, 125, 396, 540], [396, 125, 397, 540], [793, 125, 397, 540], [1190, 125, 396, 540], [1586, 125, 397, 540]], "portraits": ["", "", "", "", "", ""]},
     {"id": "names", "name": "仅显示席位", "atlas": "", "regions": [[], [], [], [], [], []], "portraits": ["", "", "", "", "", ""]}
   ]
 }
