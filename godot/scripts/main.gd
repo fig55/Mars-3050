@@ -2,7 +2,7 @@ extends Control
 
 const SAVE_FILE := "user://mars_v2_save.json"
 const BG := Color("101721")
-const PANEL := Color("1a2933dc")
+const PANEL := Color("10191ee6")
 const GOLD := Color("e9bc74")
 const LIGHT := Color("f5e8d0")
 const MUTED := Color("a8b8b7")
@@ -128,6 +128,11 @@ func _button(text_value: String, callback: Callable, accent: bool = false) -> Bu
 	button.pressed.connect(callback)
 	return button
 
+func _positioned(node: Control, parent: Control, at: Vector2, extent: Vector2) -> void:
+	parent.add_child(node)
+	node.position = at
+	node.size = extent
+
 func _build_ui() -> void:
 	var background := ColorRect.new()
 	background.color = BG
@@ -139,171 +144,149 @@ func _build_ui() -> void:
 	environment_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	environment_view.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	environment_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	environment_view.modulate.a = 0.64
+	environment_view.modulate = Color(0.88, 0.84, 0.8, 1.0)
 	add_child(environment_view)
-	var root := VBoxContainer.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("separation", 10)
-	root.offset_left = 16
-	root.offset_right = -16
-	root.offset_top = 12
-	root.offset_bottom = -12
-	add_child(root)
-
-	var header := HBoxContainer.new()
-	header.custom_minimum_size.y = 60
-	root.add_child(header)
-	var title := _label("火星牌局  /  MARS TABLE", 30, GOLD)
-	title.custom_minimum_size.x = 380
-	title.autowrap_mode = TextServer.AUTOWRAP_OFF
-	header.add_child(title)
-	header.add_spacer(false)
+	var shade := ColorRect.new()
+	shade.color = Color(0.025, 0.035, 0.04, 0.25)
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(shade)
+	var stage := Control.new()
+	stage.name = "TableStage"
+	stage.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(stage)
+	var title := _label("火 星 牌 局", 34, Color("ead9c5"))
+	_positioned(title, stage, Vector2(28, 18), Vector2(360, 44))
+	var subtitle := _label("M A R S   P O K E R   V 2", 13, GOLD)
+	_positioned(subtitle, stage, Vector2(30, 64), Vector2(340, 22))
+	var quote := _label("在更远的地方，依然是人。", 14, Color("c6b49f"))
+	_positioned(quote, stage, Vector2(30, 94), Vector2(260, 24))
+	var tools_row := HBoxContainer.new()
+	tools_row.add_theme_constant_override("separation", 5)
+	_positioned(tools_row, stage, Vector2(550, 18), Vector2(590, 36))
 	for selector in [["environments", "场景"], ["tables", "桌面"], ["people", "人物"]]:
 		var choice := OptionButton.new()
-		choice.custom_minimum_size = Vector2(113, 42)
-		choice.add_theme_font_size_override("font_size", 15)
+		choice.custom_minimum_size = Vector2(90, 34)
+		choice.add_theme_font_size_override("font_size", 12)
 		choice.add_theme_color_override("font_color", LIGHT)
-		choice.add_theme_stylebox_override("normal", _panel(PANEL, 8, GOLD))
+		choice.add_theme_stylebox_override("normal", _panel(Color("101719cc"), 6, Color("716250")))
 		for entry in visuals.get(selector[0], []):
 			choice.add_item("%s · %s" % [selector[1], entry.name])
 		if choice.item_count > 0:
 			choice.select(clampi(visual_indices[selector[0]], 0, choice.item_count - 1))
 		choice.item_selected.connect(_change_visual.bind(selector[0]))
-		header.add_child(choice)
-	phase_label = _label("", 17, MUTED)
-	phase_label.custom_minimum_size.x = 165
-	phase_label.autowrap_mode = TextServer.AUTOWRAP_OFF
-	header.add_child(phase_label)
-	header.add_child(_button("玩法图示", _show_rules))
-
-	var body := HBoxContainer.new()
-	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_theme_constant_override("separation", 12)
-	root.add_child(body)
-	var main := VBoxContainer.new()
-	main.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	main.add_theme_constant_override("separation", 9)
-	body.add_child(main)
-	var sidebar := PanelContainer.new()
-	sidebar.custom_minimum_size.x = 300
-	sidebar.size_flags_horizontal = Control.SIZE_SHRINK_END
-	sidebar.add_theme_stylebox_override("panel", _panel(PANEL, 18))
-	body.add_child(sidebar)
-	var side_inner := VBoxContainer.new()
-	sidebar.add_child(side_inner)
-	side_inner.add_child(_label("桌边纪事", 25, GOLD))
-	side_inner.add_child(_label("最近动作与结算", 14, MUTED))
-	journal = RichTextLabel.new()
-	journal.bbcode_enabled = true
-	journal.scroll_following = false
-	journal.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	journal.add_theme_font_size_override("normal_font_size", 17)
-	journal.add_theme_color_override("default_color", LIGHT)
-	side_inner.add_child(journal)
-	side_inner.add_child(_label("发送表情", 16, GOLD))
-	var emotes := HBoxContainer.new()
-	emotes.add_theme_constant_override("separation", 3)
-	side_inner.add_child(emotes)
-	for item in [["☺", "微笑"], ["👍", "赞"], ["😮", "惊讶"], ["🤔", "思考"]]:
-		var button := _button(item[0], _send_emote.bind(item[0], item[1]))
-		button.custom_minimum_size = Vector2(54, 42)
-		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		emotes.add_child(button)
-
-	var top_seats := HBoxContainer.new()
-	top_seats.custom_minimum_size.y = 100
-	top_seats.add_theme_constant_override("separation", 8)
-	main.add_child(top_seats)
-	for seat in [1, 2, 3]:
-		_create_seat(top_seats, seat)
+		tools_row.add_child(choice)
+	tools_row.add_child(_button("牌型", _show_rules))
+	phase_label = _label("", 15, GOLD)
+	phase_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_positioned(phase_label, stage, Vector2(855, 64), Vector2(285, 28))
 
 	table_panel = PanelContainer.new()
-	table_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	table_panel.custom_minimum_size.y = 310
+	table_panel.name = "PokerTable"
 	table_panel.add_theme_stylebox_override("panel", _table_clear_style())
-	main.add_child(table_panel)
+	_positioned(table_panel, stage, Vector2(30, 260), Vector2(1100, 435))
 	table_drop = table_panel
 	table_view = TextureRect.new()
-	table_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	table_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	table_view.stretch_mode = TextureRect.STRETCH_SCALE
 	table_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	table_panel.add_child(table_view)
-	var table_inner := VBoxContainer.new()
-	table_inner.alignment = BoxContainer.ALIGNMENT_CENTER
-	table_inner.add_theme_constant_override("separation", 3)
-	table_panel.add_child(table_inner)
-	pot_label = _label("", 20, GOLD)
+	for seat in [1, 2, 3, 4, 5, 0]:
+		_create_seat(stage, seat)
+	pot_label = _label("", 26, GOLD)
 	pot_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	table_inner.add_child(pot_label)
+	_positioned(pot_label, stage, Vector2(375, 323), Vector2(410, 36))
 	pot_crystal_row = HBoxContainer.new()
 	pot_crystal_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	pot_crystal_row.custom_minimum_size.y = 24
-	table_inner.add_child(pot_crystal_row)
+	_positioned(pot_crystal_row, stage, Vector2(375, 358), Vector2(410, 30))
 	var board_row := HBoxContainer.new()
 	board_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	board_row.add_theme_constant_override("separation", 7)
-	table_inner.add_child(board_row)
+	board_row.add_theme_constant_override("separation", 9)
+	_positioned(board_row, stage, Vector2(240, 397), Vector2(680, 157))
 	for i in range(5):
 		var card := CelestialCardFace.new()
 		board_row.add_child(card)
 		board_cards.append(card)
-	hero_hand_label = _label("", 15, LIGHT)
+	hero_hand_label = _label("", 14, LIGHT)
 	hero_hand_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	table_inner.add_child(hero_hand_label)
+	_positioned(hero_hand_label, stage, Vector2(385, 561), Vector2(390, 22))
 	var hero_row := HBoxContainer.new()
 	hero_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	hero_row.add_theme_constant_override("separation", 5)
-	table_inner.add_child(hero_row)
+	hero_row.add_theme_constant_override("separation", 8)
+	_positioned(hero_row, stage, Vector2(455, 589), Vector2(250, 128))
 	for i in range(2):
-		var hero_card := CelestialCardFace.new(true)
-		hero_row.add_child(hero_card)
-		hero_cards.append(hero_card)
-	turn_label = _label("", 14, MUTED)
+		var card := CelestialCardFace.new(true)
+		hero_row.add_child(card)
+		hero_cards.append(card)
+	turn_label = _label("", 14, GOLD)
 	turn_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	table_inner.add_child(turn_label)
+	_positioned(turn_label, stage, Vector2(340, 725), Vector2(480, 24))
 
-	var bottom_seats := HBoxContainer.new()
-	bottom_seats.custom_minimum_size.y = 100
-	bottom_seats.add_theme_constant_override("separation", 8)
-	main.add_child(bottom_seats)
-	for seat in [4, 0, 5]:
-		_create_seat(bottom_seats, seat)
+	var sidebar := PanelContainer.new()
+	sidebar.name = "JournalPanel"
+	sidebar.add_theme_stylebox_override("panel", _panel(Color("0c1216ed"), 10, Color("8a7b68")))
+	_positioned(sidebar, stage, Vector2(1152, 16), Vector2(272, 710))
+	var side_inner := VBoxContainer.new()
+	side_inner.add_theme_constant_override("separation", 12)
+	sidebar.add_child(side_inner)
+	side_inner.add_child(_label("局势记录", 22, LIGHT))
+	side_inner.add_child(HSeparator.new())
+	journal = RichTextLabel.new()
+	journal.bbcode_enabled = true
+	journal.scroll_following = true
+	journal.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	journal.add_theme_font_size_override("normal_font_size", 16)
+	journal.add_theme_color_override("default_color", LIGHT)
+	side_inner.add_child(journal)
+	var landscape := TextureRect.new()
+	landscape.texture = load("res://visuals/assets/mars-habitat.png")
+	landscape.custom_minimum_size.y = 146
+	landscape.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	landscape.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	side_inner.add_child(landscape)
+	side_inner.add_child(_label("红尘漫过天际，\n但牌局仍在继续。", 15, Color("c6b49f")))
+	var emotes := HBoxContainer.new()
+	emotes.add_theme_constant_override("separation", 4)
+	side_inner.add_child(emotes)
+	for item in [["☺", "微笑"], ["赞", "赞"], ["!", "惊讶"], ["…", "思考"]]:
+		var button := _button(item[0], _send_emote.bind(item[0], item[1]))
+		button.custom_minimum_size = Vector2(48, 32)
+		button.tooltip_text = item[1]
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		emotes.add_child(button)
 
 	var controls := PanelContainer.new()
-	controls.add_theme_stylebox_override("panel", _panel(PANEL, 16))
-	main.add_child(controls)
+	controls.name = "PlayerConsole"
+	controls.add_theme_stylebox_override("panel", _panel(Color("0c1216f2"), 10, Color("8a7b68")))
+	_positioned(controls, stage, Vector2(16, 758), Vector2(1120, 126))
 	var control_inner := VBoxContainer.new()
-	control_inner.add_theme_constant_override("separation", 6)
+	control_inner.add_theme_constant_override("separation", 4)
 	controls.add_child(control_inner)
 	var bank_header := HBoxContainer.new()
 	control_inner.add_child(bank_header)
-	var bank_title := _label("能源晶片 · 数取到桌前 → 推入能源池", 17, GOLD)
-	bank_title.custom_minimum_size.x = 440
+	var bank_title := _label("你的能源晶片", 16, GOLD)
 	bank_title.autowrap_mode = TextServer.AUTOWRAP_OFF
 	bank_header.add_child(bank_title)
 	bank_header.add_spacer(false)
 	selected_label = _label("", 16, LIGHT)
-	selected_label.custom_minimum_size.x = 170
 	selected_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	bank_header.add_child(selected_label)
-	var staging_row := HBoxContainer.new()
-	staging_row.add_theme_constant_override("separation", 8)
-	control_inner.add_child(staging_row)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	control_inner.add_child(row)
 	bank_box = HBoxContainer.new()
-	bank_box.add_theme_constant_override("separation", 6)
-	bank_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	staging_row.add_child(bank_box)
+	bank_box.add_theme_constant_override("separation", 5)
+	row.add_child(bank_box)
 	tray_drop = PanelContainer.new()
-	tray_drop.custom_minimum_size = Vector2(335, 65)
-	tray_drop.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tray_drop.add_theme_stylebox_override("panel", _panel(Color("3a3030e6"), 12, GOLD))
+	tray_drop.custom_minimum_size = Vector2(222, 62)
+	tray_drop.add_theme_stylebox_override("panel", _panel(Color("273138dd"), 8, MUTED))
 	tray_drop.gui_input.connect(_tray_input)
-	staging_row.add_child(tray_drop)
+	row.add_child(tray_drop)
 	var tray_content := VBoxContainer.new()
 	tray_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tray_drop.add_child(tray_content)
-	tray_label = _label("桌前待推 · 空", 15, GOLD)
+	tray_label = _label("桌前待推 · 空", 14, GOLD)
 	tray_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tray_content.add_child(tray_label)
 	tray_icon_row = HBoxContainer.new()
@@ -311,19 +294,19 @@ func _build_ui() -> void:
 	tray_icon_row.add_theme_constant_override("separation", 3)
 	tray_content.add_child(tray_icon_row)
 	action_box = HBoxContainer.new()
-	action_box.add_theme_constant_override("separation", 8)
-	control_inner.add_child(action_box)
-	status_label = _label("", 15, MUTED)
+	action_box.add_theme_constant_override("separation", 6)
+	action_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	action_box.alignment = BoxContainer.ALIGNMENT_END
+	row.add_child(action_box)
+	status_label = _label("", 12, MUTED)
 	control_inner.add_child(status_label)
-
 	var result_panel := PanelContainer.new()
-	result_panel.custom_minimum_size.y = 75
-	result_panel.add_theme_stylebox_override("panel", _panel(Color("26312b"), 14, GOLD))
-	main.add_child(result_panel)
+	result_panel.name = "HandResult"
+	result_panel.add_theme_stylebox_override("panel", _panel(Color("0c1216f2"), 10, Color("8a7b68")))
+	_positioned(result_panel, stage, Vector2(1152, 744), Vector2(272, 140))
 	result_label = RichTextLabel.new()
 	result_label.bbcode_enabled = true
-	result_label.fit_content = true
-	result_label.add_theme_font_size_override("normal_font_size", 17)
+	result_label.add_theme_font_size_override("normal_font_size", 16)
 	result_label.add_theme_color_override("default_color", LIGHT)
 	result_panel.add_child(result_label)
 
@@ -368,41 +351,37 @@ func _build_ui() -> void:
 	emote_bubble.add_theme_stylebox_override("normal", _panel(Color("27363be8"), 15, GOLD))
 	add_child(emote_bubble)
 
-func _create_seat(parent: HBoxContainer, seat: int) -> void:
-	var panel := PanelContainer.new()
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.add_theme_stylebox_override("panel", _panel(Color("14232a88"), 14))
-	parent.add_child(panel)
+func _create_seat(parent: Control, seat: int) -> void:
 	seat_boxes.resize(6)
 	seat_labels.resize(6)
 	seat_card_labels.resize(6)
 	seat_portraits.resize(6)
-	seat_boxes[seat] = panel
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	panel.add_child(row)
-	var portrait_holder := Control.new()
-	portrait_holder.custom_minimum_size = Vector2(96, 74) if seat != 0 else Vector2(32, 74)
-	portrait_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(portrait_holder)
+	var positions := [Vector2(24, 654), Vector2(128, 260), Vector2(474, 250), Vector2(833, 260), Vector2(26, 552), Vector2(928, 552)]
 	var portrait := TextureRect.new()
-	portrait.size = Vector2(103, 124)
-	portrait.position = Vector2(-8, -14)
+	portrait.name = "Portrait%d" % seat
 	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	portrait_holder.add_child(portrait)
+	var extent := Vector2(242, 265) if seat in [1, 2, 3] else Vector2(215, 248)
+	var at: Vector2 = positions[seat] + Vector2(-24, -220 if seat in [1, 2, 3] else -200)
+	_positioned(portrait, parent, at, extent)
 	seat_portraits[seat] = portrait
+	var panel := PanelContainer.new()
+	panel.name = "Seat%d" % seat
+	panel.add_theme_stylebox_override("panel", _panel(Color("0e171ddd"), 8, Color("8a7b68")))
+	_positioned(panel, parent, positions[seat], Vector2(184, 76))
+	seat_boxes[seat] = panel
 	var inner := VBoxContainer.new()
 	inner.add_theme_constant_override("separation", 2)
-	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(inner)
-	var name := _label("", 16, GOLD)
+	panel.add_child(inner)
+	var name := _label("", 17, GOLD)
 	inner.add_child(name)
 	seat_labels[seat] = name
 	var cards := _label("", 12, LIGHT)
 	inner.add_child(cards)
 	seat_card_labels[seat] = cards
+	if seat == 0:
+		panel.visible = false
 
 func _clear(container: Node) -> void:
 	for child in container.get_children():
@@ -414,13 +393,15 @@ func _refresh() -> void:
 	_render_pot_crystals()
 	for i in range(6):
 		var player: Dictionary = game.players[i]
-		seat_labels[i].text = "%s  ·  %d 能源%s" % [player.name, player.stack, "  ◉ 行动中" if game.actor == i else ""]
+		seat_labels[i].text = "%s   %d%s" % [player.name, player.stack, "  ◉" if game.actor == i else ""]
 		seat_labels[i].add_theme_color_override("font_color", GOLD if game.actor == i else LIGHT)
+		seat_portraits[i].modulate = Color(0.58, 0.58, 0.58, 0.82) if player.folded else Color.WHITE
 		var cards_text := "  ".join(player.cards.map(func(card): return CelestialCatalog.short_text(catalog, card))) if i == 0 or game.showdown else "✦  未亮牌  ✦"
 		var stacks: Array = Crystals.split(player.stack, true)
 		var crystals_text := " ".join(stacks.map(func(group): return "%d×%d" % [group.value, group.count - (selected.get(group.value, 0) if i == 0 else 0)]))
-		seat_card_labels[i].text = "%s\n%s · 本轮 %d · 本手 %d\n◆ %s" % [cards_text, player.last, player.bet, player.total, crystals_text if not crystals_text.is_empty() else "无晶片"]
-		seat_boxes[i].add_theme_stylebox_override("panel", _panel(Color("30403baa") if game.actor == i else Color("14232a88"), 14, GOLD if game.actor == i else Color.TRANSPARENT))
+		seat_card_labels[i].text = "%s · 已投入 %d" % [player.last if not player.last.is_empty() else "等待行动", player.total]
+		seat_boxes[i].tooltip_text = "%s\n本轮 %d · 本手 %d\n◆ %s" % [cards_text, player.bet, player.total, crystals_text]
+		seat_boxes[i].add_theme_stylebox_override("panel", _panel(Color("42372aee") if game.actor == i else Color("0e171ddd"), 8, GOLD if game.actor == i else Color("8a7b68")))
 	for i in range(5):
 		if i < game.board.size():
 			var card: Dictionary = game.board[i]
@@ -500,7 +481,7 @@ func _render_bank() -> void:
 		var chosen: int = selected.get(value, 0)
 		var available := count - chosen
 		var crystal := Button.new()
-		crystal.custom_minimum_size = Vector2(85, 64)
+		crystal.custom_minimum_size = Vector2(68, 58)
 		crystal.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		crystal.disabled = available <= 0
 		var index: int = Crystals.DENOMINATIONS.find(value)
@@ -513,7 +494,7 @@ func _render_bank() -> void:
 		content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		content.alignment = BoxContainer.ALIGNMENT_CENTER
 		crystal.add_child(content)
-		content.add_child(EnergyCrystalArt.icon(value, Vector2(37, 43)))
+		content.add_child(EnergyCrystalArt.icon(value, Vector2(29, 37)))
 		var count_label := _label("%d\n×%d" % [value, available], 14, LIGHT)
 		count_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 		count_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -554,13 +535,13 @@ func _render_actions() -> void:
 	action_box.add_child(_button("弃牌", func(): _hero_act("fold")))
 	if opt.call == 0:
 		action_box.add_child(_button("过牌", func(): _hero_act("call"), true))
-	action_box.add_child(_button("推入能源池 %d" % _selected_amount(), _drop_selected, true))
-	action_box.add_child(_button("收回桌前晶片", _clear_selected))
-	status_label.text = "跟注需从桌前推 %d；加注至少到 %d；最多到 %d。先数取，再拖动桌前晶片或按“推入能源池”。" % [opt.call, opt.min, opt.max]
+	action_box.add_child(_button("推入 %d" % _selected_amount(), _drop_selected, true))
+	action_box.add_child(_button("收回", _clear_selected))
+	status_label.text = "跟注 %d · 最低加注至 %d · 上限 %d  |  点击晶片数取，再推动桌前晶片下注" % [opt.call, opt.min, opt.max]
 
 func _render_result() -> void:
 	if game.phase != "done":
-		result_label.text = "[color=#e9bc74]结果区[/color]  ·  结算后在这里完整显示赢家、边池和平分。"
+		result_label.text = "[color=#e9bc74][b]本局结果[/b][/color]\n\n—\n[color=#a8b8b7]牌局进行中[/color]"
 		return
 	var lines: Array = []
 	for result in game.results:

@@ -18,17 +18,17 @@ func _init(is_compact: bool = false) -> void:
 	compact = is_compact
 
 func _ready() -> void:
-	custom_minimum_size = Vector2(88, 91) if compact else Vector2(96, 108)
+	custom_minimum_size = Vector2(112, 128) if compact else Vector2(122, 157)
 	add_theme_stylebox_override("panel", _style())
 	var layout := VBoxContainer.new()
 	layout.add_theme_constant_override("separation", 0)
 	add_child(layout)
 	rank_label = Label.new()
 	rank_label.add_theme_color_override("font_color", Color("302d2b"))
-	rank_label.add_theme_font_size_override("font_size", 15 if compact else 16)
+	rank_label.add_theme_font_size_override("font_size", 20 if compact else 23)
 	layout.add_child(rank_label)
 	var art_frame := Control.new()
-	art_frame.custom_minimum_size.y = 35 if compact else 50
+	art_frame.custom_minimum_size.y = 57 if compact else 82
 	art_frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	layout.add_child(art_frame)
 	art = TextureRect.new()
@@ -40,13 +40,13 @@ func _ready() -> void:
 	name_label = Label.new()
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.add_theme_color_override("font_color", Color("252322"))
-	name_label.add_theme_font_size_override("font_size", 10)
+	name_label.add_theme_font_size_override("font_size", 13)
 	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	layout.add_child(name_label)
 	size_label = Label.new()
 	size_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	size_label.add_theme_color_override("font_color", Color("6b5145"))
-	size_label.add_theme_font_size_override("font_size", 9)
+	size_label.add_theme_font_size_override("font_size", 11)
 	layout.add_child(size_label)
 	set_back()
 
@@ -67,13 +67,22 @@ func _style() -> StyleBoxFlat:
 func set_back() -> void:
 	if rank_label == null:
 		return
-	rank_label.text = "✦"
+	var back := _style()
+	back.bg_color = Color("193132")
+	back.border_color = Color("a58c69")
+	add_theme_stylebox_override("panel", back)
+	rank_label.add_theme_color_override("font_color", Color("c6ad87"))
+	name_label.add_theme_color_override("font_color", Color("c6ad87"))
+	rank_label.text = "◇"
 	art.texture = null
 	name_label.text = "待发牌"
 	size_label.text = ""
 	tooltip_text = ""
 
 func set_card(card: Dictionary, body: Dictionary) -> void:
+	add_theme_stylebox_override("panel", _style())
+	rank_label.add_theme_color_override("font_color", Color("302d2b"))
+	name_label.add_theme_color_override("font_color", Color("252322"))
 	rank_label.text = "%s  %s" % [CelestialCatalog.rank_text(card.r), CelestialCatalog.ICONS[card.s]]
 	name_label.text = str(body.get("name", "?"))
 	var radius: float = body.get("radius_km", 0.0)

@@ -16,6 +16,13 @@ func run() -> void:
 	var result: Rect2 = main.result_label.get_global_rect()
 	var table: Rect2 = main.table_drop.get_global_rect()
 	var valid: bool = bounds.encloses(dialog) and bounds.encloses(result) and table.end.y < result.position.y
+	# The fixed console must keep its real controls within the design viewport.
+	var console: Control = main.get_node("TableStage/PlayerConsole")
+	valid = valid and bounds.encloses(console.get_global_rect())
+	for area in [main.bank_box, main.tray_drop, main.action_box, main.status_label]:
+		valid = valid and console.get_global_rect().encloses(area.get_global_rect())
+	for card in main.board_cards + main.hero_cards:
+		valid = valid and bounds.encloses(card.get_global_rect())
 	valid = valid and main.drag_ghost.size.x <= 70 and main.drag_ghost.size.y <= 70
 	valid = valid and main.table_view.texture != null and main.hero_cards.size() == 2 and main.hero_cards[0].art.texture != null
 	valid = valid and _pot_art_amount(main) == main.game.pot()
