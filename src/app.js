@@ -45,13 +45,140 @@ const cardText = c => `${({11:'J',12:'Q',13:'K',14:'A'})[c.r] || c.r}${['♠','�
 const phases = { ready: '等候入座', preflop: '翻牌前', flop: '翻牌圈', turn: '转牌圈', river: '河牌圈', done: '本手结束' };
 function card(c, placeholder = '') { if (!c) return `<div class="card empty">${placeholder}</div>`; return `<div class="card ${c.s === 1 || c.s === 2 ? 'red' : ''}" aria-label="${['黑桃','红心','方块','梅花'][c.s]}${c.r}">${({11:'J',12:'Q',13:'K',14:'A'})[c.r] || c.r}<span>${['♠','♥','♦','♣'][c.s]}</span></div>`; }
 function position(i) { return [i === game.button ? '庄家' : '', i === game.sb ? '小盲' : '', i === game.bb ? '大盲' : ''].filter(Boolean).join(' / '); }
+// Presentation follows public engine events; animation never changes game accounting.
+let visualGame, visualHand = -1, visualEvent = 0;
+const chipMotions = new Set();
+let selectedChips=[], selectionContext='', dragChips=null;
+const selectedAmount=()=>selectedChips.reduce((a,b)=>a+b,0);
+function chipGroups(groups, interactive=false) {
+  return groups.map(({value,count})=>{
+    const tokens=Array.from({length:count},(_,i)=>`<span class="real-chip denomination-${value}" data-value="${value}" style="--level:${i}" aria-hidden="true">${value}</span>`).join('');
+    const label=`${value} 面额，${count} 枚${interactive?'，点击选一枚':''}`;
+    return `<${interactive?'button type="button"':'span'} class="chip-group" ${interactive?`data-pick-chip="${value}"`:''} aria-label="${label}"><span class="chip-column" style="--count:${count};--chip-step:${Math.min(2,16/Math.max(1,count-1))}px">${tokens}</span><small>${value} × ${count}</small></${interactive?'button':'span'}>`;
+  }).join('');
+}
+function chipStack(amount,change=false) { return chipGroups(TableChips.split(amount,change)); }
+function clearChipSelection() {selectedChips=[];updateChipSelection();}
+function updateChipSelection() {
+  const tray=$('chipSelection'); if(!tray) return;
+  const amount=selectedAmount();
+  tray.hidden=game.actor!==0;
+  $('selectedChipAmount').textContent=amount?`已选 ${fmt(amount)}（尚未下注）· 拖动桌前筹码到公共牌或底池`:'点击筹码数好金额，直接从自己面前拖到公共牌或底池';
+  $('throwChips').disabled=!amount;$('resetChips').disabled=!amount;
+  $('selectedChipPreview').innerHTML=chipGroups(TableChips.denominations.map(value=>({value,count:selectedChips.filter(v=>v===value).length})).filter(g=>g.count));
+  $('chipDropZone').hidden=!amount;
+  const bank=document.querySelector('.hero .seat-chips');
+  if(bank) {
+    const groups=TableChips.split(game.players[0].stack,true);
+    bank.innerHTML=chipGroups(groups,game.actor===0);
+    bank.querySelectorAll('[data-pick-chip]').forEach(button=>{
+      const count=selectedChips.filter(v=>v===Number(button.dataset.pickChip)).length;
+      button.classList.toggle('chip-selected',count>0);
+      if(count){const badge=document.createElement('span');badge.className='chip-selected-count';badge.textContent=`已选 ${count}`;button.append(badge);}
+    });
+    bank.setAttribute('aria-label',`余额 ${fmt(game.players[0].stack)}，其中已选 ${fmt(amount)}，尚未下注`);
+  }
+  document.querySelector('.board-area').classList.toggle('accepts-chips',amount>0);
+}
+function submitChips() {
+  if(game.actor!==0)return;
+  try {
+    const move=TableChips.move(selectedAmount(),game.players[0],game.options());
+    $('error').textContent='';act(...move);
+    if(game.actor!==0) clearChipSelection();
+  } catch(error) {$('error').textContent=`${error.message}；筹码已退回待投区。`;}
+}
+window.addEventListener('resize',()=>{
+  for (const {animation} of chipMotions) animation.cancel();
+});
+function flyChips(from, to, amount, delay = 0, tokens = null) {
+  if (!from || !to || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const stage=document.querySelector('.table-stage'), origin=stage.getBoundingClientRect();
+  const a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
+  let index=0;
+  for(const {value,count} of tokens || TableChips.split(amount)) for(let n=0;n<count;n++) {
+  const chip = document.createElement('span');
+  chip.className = `flying-chip real-chip denomination-${value}`; chip.textContent=value;chip.dataset.value=value;chip.setAttribute('aria-hidden','true');
+  chip.style.left = `${a.left+a.width/2-origin.left-9}px`; chip.style.top = `${a.top+a.height/2-origin.top-6}px`;
+  stage.append(chip);
+  const dx=b.left+b.width/2-a.left-a.width/2,dy=b.top+b.height/2-a.top-a.height/2;
+  const animation = chip.animate([
+    {transform:'translate(0,0) scale(1)',opacity:0},
+    {opacity:1,offset:.12},
+    {transform:`translate(${dx*.55}px,${dy*.55-14}px) rotate(12deg)`,opacity:1,offset:.55},
+    {transform:`translate(${dx}px,${dy}px) rotate(0deg)`,opacity:0}
+  ],{duration:620,delay:delay+index++*24,easing:'cubic-bezier(.22,.61,.36,1)',fill:'both'});
+  const motion = {animation,chip}; chipMotions.add(motion);
+  animation.finished.catch(()=>{}).finally(()=>{chip.remove();chipMotions.delete(motion);});
+  }
+}
+function renderTableActivity() {
+  if (visualGame !== game || visualHand !== game.hand) {
+    selectedChips=[];
+    for (const {animation,chip} of chipMotions) { animation.cancel();chip.remove(); }
+    chipMotions.clear(); visualGame=game; visualHand=game.hand; visualEvent=0;
+  }
+  const seats = [document.querySelector('.hero'), ...document.querySelectorAll('.seat')];
+  seats.forEach((seat,i)=>{
+    seat.querySelector('.seat-chips')?.remove();
+    seat.querySelector('.waiting-indicator')?.remove();
+    const chips = document.createElement('div'); chips.className='seat-chips';
+    chips.setAttribute('aria-label',`剩余筹码 ${fmt(game.players[i].stack)}`);
+    chips.innerHTML=chipStack(game.players[i].stack,true);
+    seat.append(chips);
+    if (game.actor===i && !['ready','done'].includes(game.phase)) {
+      const waiting=document.createElement('span'); waiting.className='waiting-indicator';
+      waiting.innerHTML=`<span>${i===0?'等待你操作':'思考中'}</span><i></i><i></i><i></i>`;
+      const actionLabel=seat.querySelector('.seat-action');
+      if (actionLabel) actionLabel.replaceChildren(waiting);
+      else seat.querySelector('.hero-info').append(waiting);
+    }
+  });
+  let potChips=$('potChips');
+  if (!potChips) { potChips=document.createElement('div');potChips.id='potChips';potChips.className='pot-chips';document.querySelector('.pot-line').prepend(potChips); }
+  potChips.innerHTML=chipStack(game.phase==='done'?0:game.pot);
+  document.body.dataset.phase=game.phase;
+  document.querySelector('.turn-line').classList.toggle('waiting',!['ready','done'].includes(game.phase));
+  const anchor=i=>seats[i]?.querySelector('.seat-chips');
+  for (const event of game.events.slice(visualEvent)) {
+    if (event.type==='blind') { flyChips(anchor(event.sb),potChips,event.sbAmount);flyChips(anchor(event.bb),potChips,event.bbAmount,100); }
+    if (event.type==='action' && event.paid>0) flyChips(anchor(event.seat),potChips,event.paid,0,event.seat===0&&selectedAmount()===event.paid?TableChips.denominations.map(value=>({value,count:selectedChips.filter(v=>v===value).length})):null);
+    if (event.type==='payout') event.seats.forEach((seat,i)=>flyChips(potChips,anchor(seat),Math.floor(event.amount/event.seats.length)+(i<event.amount%event.seats.length?1:0),200+i*150));
+  }
+  visualEvent=game.events.length;
+  const context=[game.hand,game.phase,game.actor,game.players[0].stack,game.players[0].bet].join(':');
+  if(selectionContext!==context){selectedChips=[];selectionContext=context;cancelChipDrag();}
+  updateChipSelection();
+}
+let momentGame=null,momentHand=-1,momentBoard='',momentKey='',momentUntil=0,momentTimer;
+function renderHandMoment(){
+  const hero=game.players[0],boardKey=game.board.map(c=>`${c.r}:${c.s}`).join(',');
+  if(momentGame!==game||momentHand!==game.hand){momentGame=game;momentHand=game.hand;momentBoard='';momentKey='';momentUntil=0;}
+  let banner=$('handMoment');
+  if(!banner){banner=document.createElement('div');banner.id='handMoment';banner.setAttribute('role','status');banner.hidden=true;document.querySelector('.controls').prepend(banner);}
+  const moment=!hero.folded&&game.phase!=='done'?Poker.handMoment(hero.cards,game.board):null;
+  if(boardKey!==momentBoard){
+    momentBoard=boardKey;
+    if(moment&&moment.key!==momentKey){
+      momentKey=moment.key;momentUntil=Date.now()+2300;
+      banner.innerHTML=`<strong>击中${moment.label}</strong><small>你的当前最佳组合 · 非胜负判定</small>`;
+      banner.classList.remove('moment-enter');void banner.offsetWidth;banner.classList.add('moment-enter');
+      clearTimeout(momentTimer);momentTimer=setTimeout(renderHandMoment,2350);
+    }else if(!moment){momentKey='';momentUntil=0;}
+  }
+  const active=!!moment&&Date.now()<momentUntil;
+  banner.hidden=!active;document.querySelector('.board-area').classList.toggle('hand-impact',active);
+  for(const [id,cards] of [['board',game.board],['hole',hero.cards]]){
+    [...$(id).children].forEach((el,i)=>el.classList.toggle('best-card',active&&moment.cards.some(c=>c.r===cards[i]?.r&&c.s===cards[i]?.s)));
+  }
+}
 function render() {
   const ajiePose = pose.hand===game.hand && Date.now()<pose.until ? pose.state : game.actor===3 ? 'thinking' : 'idle';
   $('handLabel').textContent = `第 ${String(game.hand || 1).padStart(2, '0')} 手`; $('phaseLabel').textContent = phases[game.phase];
   $('pot').innerHTML = `${fmt(game.pot)} <small>${game.phase === 'done' ? '已结算' : '筹码'}</small>`;
   $('board').innerHTML = Array.from({length:5}, (_, i) => card(game.board[i], ['翻','牌','圈','转牌','河牌'][i])).join('');
   $('hole').innerHTML = [0,1].map(i => card(game.players[0].cards[i], '待发')).join('');
-  $('opponents').innerHTML = game.players.slice(1).map((p,j) => `<article class="seat seat-${j+1} ${p.folded ? 'folded' : ''} ${game.actor === j+1 ? 'active' : ''} ${game.phase === 'done' && p.stack > p.startStack ? 'winner' : ''}" aria-label="${p.name}的座位"><div class="portrait" style="--sprite:${j*25}%;${j===2 ? `--pose:${poses[ajiePose]*20}%` : ''}" aria-hidden="true"></div><div class="nameplate"><div class="seat-name">${p.name}<span class="pos">${position(j+1)}</span></div><div class="seat-stack"><small>筹码</small> ${fmt(p.stack)}</div><div class="seat-action">${game.actor === j+1 ? '正在思考…' : p.last || p.style}</div></div>${game.showdown && !p.folded ? `<div class="cards revealed">${p.cards.map(c=>card(c)).join('')}</div>` : ''}<p class="tell"></p></article>`).join('');
+  $('opponents').innerHTML = game.players.slice(1).map((p,j) => `<article class="seat seat-${j+1} ${p.folded ? 'folded' : ''} ${game.actor === j+1 ? 'active' : ''} ${game.phase === 'done' && p.stack > p.startStack ? 'winner' : ''}" aria-label="${p.name}的座位"><div class="portrait" style="--sprite:${j*25}%;${j===2 ? `--pose:${poses[ajiePose]*20}%` : ''}" aria-hidden="true"></div><div class="nameplate"><div class="seat-name">${p.name}<span class="pos">${position(j+1)}</span></div><div class="seat-stack"><small>筹码</small> ${fmt(p.stack)}</div><div class="seat-action">${game.actor === j+1 ? '正在思考…' : p.last || p.style}</div>${game.showdown && !p.folded ? `<div class="cards revealed" aria-label="${p.name}亮牌：${p.cards.map(cardText).join('、')}">${p.cards.map(c=>card(c)).join('')}</div>` : ''}</div><p class="tell"></p></article>`).join('');
   document.querySelectorAll('.seat .tell').forEach((el,i) => el.textContent = game.players[i+1].tell);
   const hero = game.players[0], mine = game.actor === 0, o = mine ? game.options() : null, end = game.phase === 'done' || game.phase === 'ready';
   document.querySelector('.hero').classList.toggle('active',mine);
@@ -74,9 +201,30 @@ function render() {
   if (o) { $('raiseAmount').min = Math.min(o.min,o.max); $('raiseAmount').max = o.max; if (+$('raiseAmount').value < Math.min(o.min,o.max) || +$('raiseAmount').value > o.max) $('raiseAmount').value = Math.min(o.min,o.max); }
   syncRange(); validateRaise();
   $('scene').textContent = game.phase === 'ready' ? '荷官理好牌堆，等你入座。' : game.phase === 'done' ? '有人收拢筹码，有人不动声色地靠回椅背。' : game.pot >= 1200 ? '桌心的筹码越堆越高，连呼吸都轻了下来。' : game.phase === 'river' ? '最后一张牌已经落下。谁会先移开目光？' : '没有人开口，目光在牌面和彼此之间移动。';
-  $('result').hidden = !game.results.length;
+  const result = $('result');
+  result.hidden = !game.results.length;
   const net = hero.stack - hero.startStack;
-  $('result').textContent = game.results.length ? (net === 0 ? '你本手持平。' : `你本手净${net>0?'赢':'输'} ${fmt(Math.abs(net))}。`) + game.results.map(r=>`${r.names} 收回 ${fmt(r.amount)}（${r.label}）${r.hands?.length ? '；最佳五张：'+r.hands.map(h=>`${game.players[h.seat].name} ${h.cards.map(cardText).join(' ')}`).join('、') : ''}`).join(' · ') : '';
+  if (game.results.length) {
+    const summary = document.createElement('strong');
+    summary.className = `result-summary ${net > 0 ? 'positive' : net < 0 ? 'negative' : ''}`;
+    summary.textContent = net === 0 ? '本手结果 · 你持平' : `本手结果 · 你净${net > 0 ? '赢' : '输'} ${fmt(Math.abs(net))}`;
+    const payouts = document.createElement('div');
+    payouts.className = 'result-payouts';
+    for (const r of game.results) {
+      const payout = document.createElement('div');
+      payout.className = 'result-payout';
+      const title = document.createElement('span');
+      title.textContent = `${r.names} 收回 ${fmt(r.amount)} · ${r.label}`;
+      payout.append(title);
+      if (r.hands?.length) {
+        const best = document.createElement('small');
+        best.textContent = `最佳五张：${r.hands.map(h=>`${game.players[h.seat].name} ${h.cards.map(cardText).join(' ')}`).join('；')}`;
+        payout.append(best);
+      }
+      payouts.append(payout);
+    }
+    result.replaceChildren(summary,payouts);
+  } else result.replaceChildren();
   $('review').hidden = !game.history.length;
   const journal = $('journal'), nearBottom = journal.scrollHeight - journal.scrollTop - journal.clientHeight < 70;
   if (shown > game.logs.length) { journal.replaceChildren(); shown = 0; }
@@ -86,6 +234,8 @@ function render() {
   while (journal.children.length > 240) journal.firstElementChild.remove(); shown = game.logs.length;
   if (nearBottom) journal.scrollTop = journal.scrollHeight;
   $('latest').hidden = journal.scrollHeight - journal.scrollTop - journal.clientHeight < 70;
+  renderTableActivity();
+  renderHandMoment();
 }
 function schedule() {
   clearTimeout(timer); saveGame();
@@ -94,7 +244,9 @@ function schedule() {
     if (delta) setPose(delta>0?'winning':'losing');
   }
   render(); if (game.phase === 'done' || game.phase === 'ready' || game.actor === 0) return;
-  timer = setTimeout(()=> { try { if (game.awaitingStreet) game.street(); else {const actor=game.actor, move=Poker.bot(game); game.act(...move); if(actor===3) setPose(move[0]==='fold'?'folding':move[0]==='raise'?'betting':'idle');} schedule(); } catch(e) { $('error').textContent = e.message; } }, +$('speed').value);
+  // A separate UI-only variation gives each opponent a readable thinking interval.
+  const delay = +$('speed').value * (game.awaitingStreet ? 1 : 1.1 + Math.random()*.5);
+  timer = setTimeout(()=> { try { if (game.awaitingStreet) game.street(); else {const actor=game.actor, move=Poker.bot(game); game.act(...move); if(actor===3) setPose(move[0]==='fold'?'folding':move[0]==='raise'?'betting':'idle');} schedule(); } catch(e) { $('error').textContent = e.message; } }, delay);
 }
 function act(type,amount,confirmed=false) {
   if (game.actor !== 0) return;
@@ -109,6 +261,59 @@ function act(type,amount,confirmed=false) {
   }
   try { game.act(type,amount); $('error').textContent = ''; schedule(); } catch(e) { $('error').textContent = e.message; }
 }
+// Keep the drag handle stable while the individual bank tokens are re-rendered.
+const chipTray=document.createElement('div');
+chipTray.id='chipSelection';chipTray.hidden=true;
+chipTray.innerHTML='<span id="selectedChipAmount" role="status"></span><button id="throwChips" type="button" disabled><span id="selectedChipPreview"></span><span>拖动 / 点击投放</span></button><button id="resetChips" type="button" disabled>放回</button>';
+document.querySelector('.controls').append(chipTray);
+const chipDropZone=document.createElement('div');chipDropZone.id='chipDropZone';chipDropZone.hidden=true;chipDropZone.textContent='拖到这里投放';document.querySelector('.board-area').append(chipDropZone);
+document.querySelector('.hero').addEventListener('click',e=>{
+  if(suppressChipClick){suppressChipClick=false;return;}
+  const button=e.target.closest('[data-pick-chip]');if(!button||game.actor!==0)return;
+  const value=Number(button.dataset.pickChip),available=TableChips.split(game.players[0].stack,true).find(g=>g.value===value)?.count||0;
+  if(selectedChips.filter(v=>v===value).length<available){selectedChips.push(value);updateChipSelection();}
+});
+$('resetChips').onclick=clearChipSelection;
+let suppressChipClick=false;
+$('throwChips').onclick=()=>{if(!suppressChipClick)submitChips();suppressChipClick=false;};
+function cancelChipDrag(){
+  if(dragChips?.moved)suppressChipClick=true;
+  dragChips?.ghost?.remove();dragChips=null;chipDropZone.classList.remove('drag-over');document.querySelector('.board-area').classList.remove('drag-over');
+}
+function beginChipDrag(e){
+  const source=e.target.closest('[data-pick-chip]');
+  if(e.button!==0||game.actor!==0||(!source&&e.currentTarget!==$('throwChips'))||document.querySelector('dialog[open]'))return;
+  suppressChipClick=false;dragChips={x:e.clientX,y:e.clientY,moved:false,value:Number(source?.dataset.pickChip)||0};e.currentTarget.setPointerCapture(e.pointerId);
+}
+function moveChipDrag(e){
+  if(!dragChips)return;
+  if(Math.hypot(e.clientX-dragChips.x,e.clientY-dragChips.y)>6&&!dragChips.moved){
+    if(!selectedAmount()&&dragChips.value){selectedChips.push(dragChips.value);updateChipSelection();}
+    if(!selectedAmount())return;
+    dragChips.moved=true;const ghost=document.createElement('div');ghost.className='chip-drag-ghost';ghost.innerHTML=$('selectedChipPreview').innerHTML;document.body.append(ghost);dragChips.ghost=ghost;
+  }
+  if(dragChips.ghost){dragChips.ghost.style.left=`${e.clientX}px`;dragChips.ghost.style.top=`${e.clientY}px`;}
+  const r=document.querySelector('.board-area').getBoundingClientRect(),inside=e.clientX>=r.left-12&&e.clientX<=r.right+12&&e.clientY>=r.top-12&&e.clientY<=r.bottom+30;
+  chipDropZone.classList.toggle('drag-over',inside);document.querySelector('.board-area').classList.toggle('drag-over',inside);
+}
+function endChipDrag(e){
+  if(!dragChips)return;moveChipDrag(e);const moved=dragChips.moved,value=dragChips.value,inside=chipDropZone.classList.contains('drag-over');
+  cancelChipDrag();suppressChipClick=moved;
+  if(!moved&&value){
+    const available=TableChips.split(game.players[0].stack,true).find(g=>g.value===value)?.count||0;
+    if(selectedChips.filter(v=>v===value).length<available){selectedChips.push(value);updateChipSelection();}
+    suppressChipClick=true;
+  }
+  if(moved&&inside)submitChips();
+  else if(moved)$('error').textContent='未投放：筹码仍在你面前，请拖到发光的公共牌区域。';
+}
+for(const handle of [$('throwChips'),document.querySelector('.hero')]){
+  handle.addEventListener('pointerdown',beginChipDrag);handle.addEventListener('pointermove',moveChipDrag);handle.addEventListener('pointerup',endChipDrag);
+  handle.addEventListener('pointercancel',()=>{suppressChipClick=true;cancelChipDrag();});
+  handle.addEventListener('lostpointercapture',()=>{if(dragChips){suppressChipClick=true;cancelChipDrag();}});
+}
+window.addEventListener('blur',cancelChipDrag);window.addEventListener('resize',cancelChipDrag);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')cancelChipDrag();});
 function syncRange() {
   $('raiseRange').min = $('raiseAmount').min; $('raiseRange').max = $('raiseAmount').max || 2000;
   $('raiseRange').value = Math.max(+$('raiseRange').min,Math.min(+$('raiseRange').max,+$('raiseAmount').value || +$('raiseRange').min));
@@ -166,7 +371,8 @@ game.log(saved ? `第 ${saved.hand} 手已结算。筹码与庄位已恢复，�
 // stand in for the missing title bar. Opened as a plain page __TAURI__ is undefined: the
 // group stays hidden and the browser's own chrome does the job.
 const appWindow = window.__TAURI__?.window?.getCurrentWindow?.();
-if (appWindow) {
+const usesMacNativeWindow = /Macintosh|Mac OS X/.test(navigator.userAgent);
+if (appWindow && !usesMacNativeWindow) {
   $('winControls').hidden = false;
   $('winMin').onclick = () => appWindow.minimize();
   $('winMax').onclick = () => appWindow.toggleMaximize();

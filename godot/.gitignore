@@ -1,0 +1,4 @@
+.godot/
+*.png.import
+*.tmp
+build/

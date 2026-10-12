@@ -6,8 +6,9 @@ dist/
 src-tauri/target/
 src-tauri/gen/schemas/
 
-# 从 release 构建拷出来的可双击副本（每次 npm run build 后重新拷）
+# 从 release 构建拷出来的可双击副本（每次桌面构建后重新拷）
 /夜局.exe
+/夜局.app/
 
 # 本地备份与编辑器
 *.bak

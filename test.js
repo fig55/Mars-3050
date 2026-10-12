@@ -1,6 +1,39 @@
 const assert = require('node:assert/strict');
+const Chips = require('./src/chips.js');
+for(let amount=0;amount<=12000;amount++) for(const change of [false,true]) {
+  const groups=Chips.split(amount,change);
+  assert.equal(groups.reduce((sum,g)=>sum+g.value*g.count,0),amount);
+  assert(groups.every(g=>g.count>0&&Number.isInteger(g.count)));
+}
+assert.throws(()=>Chips.split(-1));assert.throws(()=>Chips.split(1.5));
+const chipPlayer={stack:190,bet:10},chipOptions={call:10,min:40,max:200,canRaise:true};
+assert.deepEqual(Chips.move(10,chipPlayer,chipOptions),['call']);
+assert.deepEqual(Chips.move(30,chipPlayer,chipOptions),['raise',40]);
+assert.throws(()=>Chips.move(5,chipPlayer,chipOptions));
+assert.throws(()=>Chips.move(20,chipPlayer,chipOptions));
+assert.throws(()=>Chips.move(191,chipPlayer,chipOptions));
+assert.throws(()=>Chips.move(30,chipPlayer,{...chipOptions,canRaise:false}));
+assert.deepEqual(Chips.move(15,{stack:15,bet:10},{...chipOptions,max:25}),['raise',25]);
+assert.deepEqual(Chips.move(5,{stack:5,bet:10},{...chipOptions,call:5,canRaise:false}),['call']);
+console.log('通过：全部 0–12000 金额的筹码守恒、点击投放金额、跟注补差、加注与短码全下校验。');
 const {Game,evaluate,bestFive,compare,bot,DEFAULT_CONTENT} = require('./src/engine.js');
 const cards = text => text.split(' ').map(s=>({r:'23456789TJQKA'.indexOf(s[0])+2,s:'shdc'.indexOf(s[1])}));
+const {handMoment}=require('./src/engine.js');
+assert.equal(handMoment(cards('As Kd'),cards('Ah 7d 2c')).label,'顶对');
+assert.equal(handMoment(cards('As Ad'),cards('Kh 7d 2c')).label,'超对');
+assert.equal(handMoment(cards('As Kd'),cards('Ah Ks 2c')).label,'两对');
+assert.equal(handMoment(cards('As Ad'),cards('Ah Ks 2c')).label,'三条');
+assert.equal(handMoment(cards('Ts 9d'),cards('8h 7s 6c')).label,'顺子');
+assert.equal(handMoment(cards('As 2s'),cards('Ks 7s 6s')).label,'同花');
+assert.equal(handMoment(cards('As Ad'),cards('Ah Ks Kc')).label,'葫芦');
+assert.equal(handMoment(cards('As Ad'),cards('Ah Ac Kc')).label,'四条');
+assert.equal(handMoment(cards('Ts 9s'),cards('8s 7s 6s')).label,'同花顺');
+assert.equal(handMoment(cards('As Kd'),cards('7h 7s 2c')),null);
+assert.equal(handMoment(cards('As 2d'),cards('Kh Ks Qc Qd 7h')),null);
+assert.equal(handMoment(cards('As 2d'),cards('Kh Ks Qc Qd')),null);
+assert.equal(handMoment(cards('2s 3d'),cards('Th Jh Qh Kh Ah')),null);
+assert.equal(handMoment(cards('As Kd'),[]),null);
+console.log('通过：顶对、超对与强牌提示；不将公共牌或未成牌误报为击中。');
 // Both default and injected-random constructors must reach a playable hand.
 for (const args of [[], [{}], [{seats:6}], [{rng:undefined}], [()=>.5], [{rng:()=>.5}], [{seats:6},()=>.5]]) {
   const game = new Game(...args);
@@ -171,13 +204,13 @@ console.log(`通过：牌型、加注合法性、短码全下与累计重开、�
   try {
     await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
     const base = `http://127.0.0.1:${server.address().port}`;
-    for (const [url,file] of [['/','index.html'],['/index.html','index.html'],['/style.css','style.css'],['/engine.js','engine.js'],['/app.js','app.js'],['/assets/players.png','assets/players.png'],['/assets/ajie-poses.png','assets/ajie-poses.png']]) {
+    for (const [url,file] of [['/','index.html'],['/index.html','index.html'],['/style.css','style.css'],['/engine.js','engine.js'],['/chips.js','chips.js'],['/app.js','app.js'],['/assets/players.png','assets/players.png'],['/assets/ajie-poses.png','assets/ajie-poses.png']]) {
       const response = await fetch(base+url);
       assert.equal(response.status,200,url);
       assert.deepEqual(Buffer.from(await response.arrayBuffer()),fs.readFileSync(path.join(__dirname,'src',file)),url);
       if(file.endsWith('.png')) assert.equal(response.headers.get('content-type'),'image/png');
     }
     assert.equal((await fetch(base+'/package.json')).status,404);
-    console.log('通过：默认/配置式开局、随机函数校验、7 个网页资源与源码一致、非公开文件拒绝访问。');
+    console.log('通过：默认/配置式开局、随机函数校验、8 个网页资源与源码一致、非公开文件拒绝访问。');
   } finally { await new Promise(resolve=>server.close(resolve)); }
 })().catch(error=>{console.error(error);process.exitCode=1;});
